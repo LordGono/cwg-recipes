@@ -13,9 +13,9 @@ declare global {
 
 export const authenticate = (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction
-) => {
+): void => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -35,9 +35,9 @@ export const authenticate = (
 
 export const requireAdmin = (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction
-) => {
+): void => {
   if (!req.user) {
     return next(createError(401, 'Authentication required'));
   }

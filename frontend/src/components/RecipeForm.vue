@@ -183,8 +183,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import type { Recipe, RecipeInput, Ingredient, Instruction } from '@/types';
+import { ref } from 'vue';
+import type { Recipe, RecipeInput } from '@/types';
 
 interface Props {
   initialData?: Recipe | null;

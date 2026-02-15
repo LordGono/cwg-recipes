@@ -97,7 +97,7 @@ export const getAllRecipes = async (
 
     const total = await prisma.recipe.count({ where });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         recipes,
@@ -105,9 +105,9 @@ export const getAllRecipes = async (
         limit: limit ? parseInt(limit as string) : recipes.length,
         offset: offset ? parseInt(offset as string) : 0,
       },
-    });
+    }) as any;
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -119,9 +119,10 @@ export const getRecipeById = async (
 ) => {
   try {
     const { id } = req.params;
+    const recipeId = Array.isArray(id) ? id[0] : id;
 
     const recipe = await prisma.recipe.findUnique({
-      where: { id },
+      where: { id: recipeId },
       include: {
         user: {
           select: {
@@ -136,12 +137,12 @@ export const getRecipeById = async (
       throw createError(404, 'Recipe not found');
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: { recipe },
-    });
+    }) as any;
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -194,13 +195,13 @@ export const createRecipe = async (
       },
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Recipe created successfully',
       data: { recipe },
-    });
+    }) as any;
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -221,6 +222,7 @@ export const updateRecipe = async (
     }
 
     const { id } = req.params;
+    const recipeId = Array.isArray(id) ? id[0] : id;
     const {
       name,
       description,
@@ -234,7 +236,7 @@ export const updateRecipe = async (
 
     // Check if recipe exists
     const existingRecipe = await prisma.recipe.findUnique({
-      where: { id },
+      where: { id: recipeId },
     });
 
     if (!existingRecipe) {
@@ -247,7 +249,7 @@ export const updateRecipe = async (
     }
 
     const recipe = await prisma.recipe.update({
-      where: { id },
+      where: { id: recipeId },
       data: {
         name,
         description,
@@ -268,13 +270,13 @@ export const updateRecipe = async (
       },
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Recipe updated successfully',
       data: { recipe },
-    });
+    }) as any;
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -290,10 +292,11 @@ export const deleteRecipe = async (
     }
 
     const { id } = req.params;
+    const recipeId = Array.isArray(id) ? id[0] : id;
 
     // Check if recipe exists
     const existingRecipe = await prisma.recipe.findUnique({
-      where: { id },
+      where: { id: recipeId },
     });
 
     if (!existingRecipe) {
@@ -306,14 +309,14 @@ export const deleteRecipe = async (
     }
 
     await prisma.recipe.delete({
-      where: { id },
+      where: { id: recipeId },
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Recipe deleted successfully',
-    });
+    }) as any;
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };

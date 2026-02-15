@@ -1,18 +1,23 @@
-# Environment variables
+# Environment variables - NEVER commit these!
 .env
 .env.local
 .env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.backup
+.env.save
+*.env
+
+# Exception: Allow .env.example to be committed
+!.env.example
 
 # Dependencies
 node_modules/
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
 
 # Build outputs
 dist/
 build/
-*.log
 *.tsbuildinfo
 
 # IDE and editor files
@@ -21,18 +26,18 @@ build/
 *.swp
 *.swo
 *~
-.DS_Store
 
 # OS files
+.DS_Store
 Thumbs.db
 Desktop.ini
 
-# Database
+# Database files (local development)
 *.db
 *.sqlite
 *.sqlite3
 
-# Docker volumes
+# Docker volumes and data
 postgres-data/
 pgdata/
 
@@ -40,8 +45,15 @@ pgdata/
 coverage/
 .nyc_output/
 
-# Prisma
-prisma/migrations/
+# Security-sensitive files - NEVER commit these!
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+id_rsa*
+*.priv
 
 # Logs
 logs/
@@ -56,6 +68,29 @@ lerna-debug.log*
 *.tmp
 *.temp
 .cache/
+.eslintcache
 
-# User-specific files (if any)
+# Backup files
+*.bak
+*.backup
+*.old
+*~
+
+# User-uploaded files (future feature)
 uploads/
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Windows
+ehthumbs.db
+ehthumbs_vista.db
+
+# Claude Code auto memory (personal context)
+.claude/
+
+# Deployment scripts (contain personal NAS paths)
+# Note: .example files are safe and should be committed to GitHub
+deploy-to-nas.ps1
+deploy-to-nas.sh

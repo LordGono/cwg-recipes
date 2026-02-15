@@ -1,0 +1,292 @@
+#!/bin/bash
+
+# Deploy CWG Recipes to Synology NAS - TEMPLATE
+# Copy this file to deploy-to-nas.sh and update the configuration variables
+
+set -e  # Exit on error
+
+# Configuration - UPDATE THESE VALUES FOR YOUR NAS
+NAS_PATH="//YOUR_NAS_NAME/docker/cwg-recipes"  # Example: //MyNAS/docker/cwg-recipes
+NAS_HOST="YOUR_NAS_NAME"  # NAS hostname or IP (e.g., "MyNAS" or "192.168.1.100")
+NAS_USER="${NAS_USER:-admin}"  # Set NAS_USER env variable or default to 'admin'
+
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+REBUILD=false
+RESTART=false
+SSH_DEPLOY=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --rebuild)
+            REBUILD=true
+            shift
+            ;;
+        --restart)
+            RESTART=true
+            shift
+            ;;
+        --ssh)
+            SSH_DEPLOY=true
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --rebuild    Rebuild Docker containers with --no-cache"
+            echo "  --restart    Restart Docker containers"
+            echo "  --ssh        Execute Docker commands via SSH (requires --rebuild or --restart)"
+            echo "  --help       Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  $0                           # Sync files only"
+            echo "  $0 --rebuild --ssh           # Sync files and rebuild via SSH"
+            echo "  $0 --restart --ssh           # Sync files and restart via SSH"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+echo "================================"
+echo "  CWG Recipes - Deploy to NAS  "
+echo "================================"
+echo ""
+
+# Check if NAS is accessible
+echo "Checking NAS connectivity..."
+if [ ! -d "$NAS_PATH" ]; then
+    echo "ERROR: Cannot access NAS at $NAS_PATH"
+    echo "Please ensure:"
+    echo "  1. NAS is powered on and accessible"
+    echo "  2. You have network connectivity"
+    echo "  3. You have proper permissions"
+    echo "  4. You've updated NAS_PATH in this script"
+    exit 1
+fi
+echo "✓ NAS is accessible"
+echo ""
+
+echo "Syncing files to NAS..."
+echo "Source: $PROJECT_DIR"
+echo "Target: $NAS_PATH"
+echo ""
+
+# Exclusion patterns
+exclude_dirs=(
+    "node_modules"
+    ".git"
+    "dist"
+    "build"
+    ".cache"
+    "postgres-data"
+    "pgdata"
+    "coverage"
+    ".vscode"
+    ".idea"
+)
+
+exclude_files=(
+    ".env"
+    ".env.local"
+    ".env.development"
+    ".env.production"
+    "*.log"
+    "*.tmp"
+    "*.bak"
+    ".DS_Store"
+    "Thumbs.db"
+    "deploy-to-nas.ps1"
+    "deploy-to-nas.sh"
+)
+
+# Files to explicitly include (even if pattern matches exclude)
+include_files=(
+    ".env.example"
+)
+
+# Function to check if path should be excluded
+should_exclude() {
+    local path="$1"
+    local name=$(basename "$path")
+
+    # First check if explicitly included
+    for include in "${include_files[@]}"; do
+        if [[ "$name" == "$include" ]]; then
+            return 1  # Don't exclude
+        fi
+    done
+
+    # Check directory exclusions
+    for exclude in "${exclude_dirs[@]}"; do
+        if [[ "$path" == *"/$exclude"* ]] || [[ "$path" == *"/$exclude" ]]; then
+            return 0
+        fi
+    done
+
+    # Check file exclusions
+    for pattern in "${exclude_files[@]}"; do
+        if [[ "$name" == $pattern ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+# Copy all files from project to NAS
+for item in "$PROJECT_DIR"/*; do
+    name=$(basename "$item")
+
+    # Skip if excluded
+    if should_exclude "$item"; then
+        echo "  Skipping: $name"
+        continue
+    fi
+
+    if [ -d "$item" ]; then
+        echo "  Syncing directory: $name/"
+        mkdir -p "$NAS_PATH/$name"
+
+        # Special handling for backend/frontend to skip node_modules
+        if [ "$name" == "backend" ] || [ "$name" == "frontend" ]; then
+            find "$item" -mindepth 1 -maxdepth 1 | while read -r subitem; do
+                subname=$(basename "$subitem")
+                if [[ "$subname" != "node_modules" && "$subname" != ".env" && "$subname" != "dist" ]]; then
+                    if [ -d "$subitem" ]; then
+                        echo "    Copying: $name/$subname/"
+                        cp -rf "$subitem" "$NAS_PATH/$name/" 2>/dev/null || true
+                    else
+                        echo "    Copying: $name/$subname"
+                        cp -f "$subitem" "$NAS_PATH/$name/" 2>/dev/null || true
+                    fi
+                fi
+            done
+        else
+            # Copy entire directory for others
+            cp -rf "$item" "$NAS_PATH/" 2>/dev/null || true
+        fi
+    else
+        echo "  Copying: $name"
+        cp -f "$item" "$NAS_PATH/"
+    fi
+done
+
+echo ""
+echo "✓ Files synced successfully"
+echo ""
+
+# Check if .env file exists
+if [ -f "$NAS_PATH/.env.example" ] && [ ! -f "$NAS_PATH/.env" ]; then
+    echo "⚠ WARNING: .env file not found on NAS!"
+    echo "  Please create $NAS_PATH/.env from .env.example"
+    echo "  And configure production settings (JWT_SECRET, passwords, etc.)"
+    echo ""
+fi
+
+# SSH deployment (if requested)
+if [ "$SSH_DEPLOY" = true ]; then
+    echo "Deploying via SSH to NAS..."
+    echo ""
+
+    # SSH to NAS and execute Docker commands
+    if [ "$REBUILD" = true ]; then
+        echo "Rebuilding containers on NAS..."
+        ssh "$NAS_USER@$NAS_HOST" << 'EOF'
+cd /volume1/docker/cwg-recipes
+
+echo "Stopping containers..."
+sudo docker-compose down -v
+
+echo "Removing old images to force rebuild..."
+sudo docker rmi cwg-recipes-backend --force 2>/dev/null || true
+sudo docker rmi cwg-recipes-frontend --force 2>/dev/null || true
+
+echo "Rebuilding with --no-cache (this may take a few minutes)..."
+sudo docker-compose build --no-cache
+
+echo "Starting containers..."
+sudo docker-compose up -d
+
+echo "✓ Containers rebuilt and started"
+echo ""
+echo "Checking container status..."
+sudo docker-compose ps
+echo ""
+echo "To view logs, run:"
+echo "  sudo docker-compose logs -f backend"
+EOF
+    elif [ "$RESTART" = true ]; then
+        echo "Restarting containers on NAS..."
+        ssh "$NAS_USER@$NAS_HOST" << 'EOF'
+cd /volume1/docker/cwg-recipes
+sudo docker-compose restart
+echo "✓ Containers restarted"
+EOF
+    fi
+    echo ""
+elif [ "$REBUILD" = true ] || [ "$RESTART" = true ]; then
+    echo "Docker operations requested..."
+    echo ""
+    echo "To execute on NAS, SSH into your NAS and run:"
+    echo ""
+
+    if [ "$REBUILD" = true ]; then
+        echo "  cd /volume1/docker/cwg-recipes"
+        echo ""
+        echo "  # Stop containers and remove volumes"
+        echo "  sudo docker-compose down -v"
+        echo ""
+        echo "  # Remove old images (important for Dockerfile changes)"
+        echo "  sudo docker rmi cwg-recipes-backend --force"
+        echo "  sudo docker rmi cwg-recipes-frontend --force"
+        echo ""
+        echo "  # Rebuild with --no-cache (critical for base image changes)"
+        echo "  sudo docker-compose build --no-cache"
+        echo ""
+        echo "  # Start containers"
+        echo "  sudo docker-compose up -d"
+        echo ""
+        echo "  # Check status and logs"
+        echo "  sudo docker-compose ps"
+        echo "  sudo docker-compose logs -f backend"
+    elif [ "$RESTART" = true ]; then
+        echo "  cd /volume1/docker/cwg-recipes"
+        echo "  sudo docker-compose restart"
+    fi
+    echo ""
+    echo "Or use --ssh flag to deploy automatically via SSH"
+    echo "  Example: ./deploy-to-nas.sh --rebuild --ssh"
+    echo ""
+fi
+
+echo "================================"
+echo "  Deployment Complete! 🚀"
+echo "================================"
+echo ""
+echo "Next steps:"
+echo "  1. SSH to NAS or use DSM to manage Docker containers"
+echo "  2. Ensure .env file is configured with production settings:"
+echo "     - Strong JWT_SECRET (use: openssl rand -base64 32)"
+echo "     - Strong POSTGRES_PASSWORD"
+echo "     - Correct DATABASE_URL with 'postgres:5432' (not localhost)"
+echo "  3. For first deployment or Dockerfile changes:"
+echo "     - Use --rebuild flag with this script"
+echo "     - OR manually rebuild with --no-cache on NAS"
+echo "  4. Access your app:"
+echo "     - Frontend: http://YOUR_NAS_IP:50000"
+echo "     - Backend health: http://YOUR_NAS_IP:50001/health"
+echo "     - Database: YOUR_NAS_IP:50002"
+echo ""
+echo "Troubleshooting:"
+echo "  - If containers restart in a loop, check logs:"
+echo "      sudo docker-compose logs -f backend"
+echo "  - For Prisma/OpenSSL errors, ensure Dockerfile uses node:20-slim"
+echo "  - For 502 errors, verify backend container is healthy"
+echo ""

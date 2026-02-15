@@ -84,13 +84,13 @@ export const register = async (
       isAdmin: user.isAdmin,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'User registered successfully',
       data: { user, token },
-    });
+    }) as any;
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -132,7 +132,7 @@ export const login = async (
       isAdmin: user.isAdmin,
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Login successful',
       data: {
@@ -144,9 +144,9 @@ export const login = async (
         },
         token,
       },
-    });
+    }) as any;
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -176,11 +176,11 @@ export const getCurrentUser = async (
       throw createError(404, 'User not found');
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: { user },
-    });
+    }) as any;
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };

@@ -1,0 +1,166 @@
+# Deploy CWG Recipes to Synology NAS - TEMPLATE
+# Copy this file to deploy-to-nas.ps1 and update the NAS_PATH variable
+
+param(
+    [switch]$Rebuild,  # Add -Rebuild flag to rebuild Docker containers
+    [switch]$Restart   # Add -Restart flag to restart containers without rebuild
+)
+
+# Configuration - UPDATE THIS WITH YOUR NAS PATH
+$NAS_PATH = "\\YOUR_NAS_NAME\docker\cwg-recipes"  # Example: \\MyNAS\docker\cwg-recipes
+$PROJECT_DIR = $PSScriptRoot
+
+Write-Host "================================" -ForegroundColor Cyan
+Write-Host "  CWG Recipes - Deploy to NAS  " -ForegroundColor Cyan
+Write-Host "================================" -ForegroundColor Cyan
+Write-Host ""
+
+# Check if NAS is accessible
+Write-Host "Checking NAS connectivity..." -ForegroundColor Yellow
+if (-not (Test-Path (Split-Path $NAS_PATH -Parent))) {
+    Write-Host "ERROR: Cannot access NAS at $NAS_PATH" -ForegroundColor Red
+    Write-Host "Please ensure:" -ForegroundColor Yellow
+    Write-Host "  1. NAS is powered on and accessible" -ForegroundColor Yellow
+    Write-Host "  2. You have network connectivity" -ForegroundColor Yellow
+    Write-Host "  3. You have proper permissions" -ForegroundColor Yellow
+    Write-Host "  4. You've updated NAS_PATH in this script" -ForegroundColor Yellow
+    exit 1
+}
+Write-Host "✓ NAS is accessible" -ForegroundColor Green
+Write-Host ""
+
+# Create target directory if it doesn't exist
+if (-not (Test-Path $NAS_PATH)) {
+    Write-Host "Creating directory on NAS..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Path $NAS_PATH -Force | Out-Null
+    Write-Host "✓ Directory created: $NAS_PATH" -ForegroundColor Green
+} else {
+    Write-Host "✓ Target directory exists: $NAS_PATH" -ForegroundColor Green
+}
+Write-Host ""
+
+# Files and directories to exclude from sync
+$excludePatterns = @(
+    'node_modules',
+    '.git',
+    'dist',
+    'build',
+    '.env',
+    '.env.local',
+    'backend\.env',
+    'frontend\.env',
+    '*.log',
+    '.cache',
+    'postgres-data',
+    'pgdata',
+    'coverage',
+    '*.tmp',
+    '*.bak',
+    'deploy-to-nas.ps1',
+    'deploy-to-nas.sh',
+    '.vscode',
+    '.idea',
+    '.DS_Store',
+    'Thumbs.db'
+)
+
+Write-Host "Syncing files to NAS..." -ForegroundColor Yellow
+Write-Host "Source: $PROJECT_DIR" -ForegroundColor Gray
+Write-Host "Target: $NAS_PATH" -ForegroundColor Gray
+Write-Host ""
+
+# Use robocopy for efficient file sync
+$excludeArgs = $excludePatterns | ForEach-Object { "/XD" ; $_ }
+$excludeFiles = @('*.log', '*.tmp', '*.bak', '.DS_Store', 'Thumbs.db') | ForEach-Object { "/XF" ; $_ }
+
+$robocopyArgs = @(
+    $PROJECT_DIR,
+    $NAS_PATH,
+    "/MIR",           # Mirror directory tree
+    "/R:2",           # Retry 2 times on failed copies
+    "/W:3",           # Wait 3 seconds between retries
+    "/MT:8",          # Use 8 threads for faster copying
+    "/NP",            # Don't show progress percentage
+    "/NFL",           # Don't log file names
+    "/NDL"            # Don't log directory names
+) + $excludeArgs + $excludeFiles
+
+# Run robocopy
+& robocopy @robocopyArgs | Out-Null
+
+# Robocopy exit codes: 0-7 are success, 8+ are errors
+if ($LASTEXITCODE -ge 8) {
+    Write-Host "ERROR: File sync failed!" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "✓ Files synced successfully" -ForegroundColor Green
+Write-Host ""
+
+# Check if .env.example exists and warn about .env
+if (Test-Path "$NAS_PATH\.env.example") {
+    if (-not (Test-Path "$NAS_PATH\.env")) {
+        Write-Host "⚠ WARNING: .env file not found on NAS!" -ForegroundColor Yellow
+        Write-Host "  Please create $NAS_PATH\.env from .env.example" -ForegroundColor Yellow
+        Write-Host "  And configure production settings (JWT_SECRET, passwords, etc.)" -ForegroundColor Yellow
+        Write-Host ""
+    }
+}
+
+# Docker operations (if requested)
+if ($Rebuild -or $Restart) {
+    Write-Host "Docker operations requested..." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "To execute on NAS, SSH into your NAS and run:" -ForegroundColor Cyan
+    Write-Host ""
+
+    if ($Rebuild) {
+        Write-Host "  cd /volume1/docker/cwg-recipes" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  # Stop containers and remove volumes" -ForegroundColor Gray
+        Write-Host "  sudo docker-compose down -v" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  # Remove old images (important for Dockerfile changes)" -ForegroundColor Gray
+        Write-Host "  sudo docker rmi cwg-recipes-backend --force" -ForegroundColor White
+        Write-Host "  sudo docker rmi cwg-recipes-frontend --force" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  # Rebuild with --no-cache (critical for base image changes)" -ForegroundColor Gray
+        Write-Host "  sudo docker-compose build --no-cache" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  # Start containers" -ForegroundColor Gray
+        Write-Host "  sudo docker-compose up -d" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  # Check status and logs" -ForegroundColor Gray
+        Write-Host "  sudo docker-compose ps" -ForegroundColor White
+        Write-Host "  sudo docker-compose logs -f backend" -ForegroundColor White
+    } elseif ($Restart) {
+        Write-Host "  cd /volume1/docker/cwg-recipes" -ForegroundColor White
+        Write-Host "  sudo docker-compose restart" -ForegroundColor White
+    }
+    Write-Host ""
+}
+
+Write-Host "================================" -ForegroundColor Cyan
+Write-Host "  Deployment Complete! 🚀" -ForegroundColor Green
+Write-Host "================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Next steps:" -ForegroundColor Yellow
+Write-Host "  1. SSH to NAS or use DSM to manage Docker containers" -ForegroundColor White
+Write-Host "  2. Ensure .env file is configured with production settings:" -ForegroundColor White
+Write-Host "     - Strong JWT_SECRET (use: openssl rand -base64 32)" -ForegroundColor Gray
+Write-Host "     - Strong POSTGRES_PASSWORD" -ForegroundColor Gray
+Write-Host "     - Correct DATABASE_URL with 'postgres:5432' (not localhost)" -ForegroundColor Gray
+Write-Host "  3. For first deployment or Dockerfile changes:" -ForegroundColor White
+Write-Host "     - Use -Rebuild flag with this script" -ForegroundColor Gray
+Write-Host "     - OR manually rebuild with --no-cache on NAS" -ForegroundColor Gray
+Write-Host "  4. Access your app:" -ForegroundColor White
+Write-Host "     - Frontend: http://YOUR_NAS_IP:50000" -ForegroundColor Gray
+Write-Host "     - Backend health: http://YOUR_NAS_IP:50001/health" -ForegroundColor Gray
+Write-Host "     - Database: YOUR_NAS_IP:50002" -ForegroundColor Gray
+Write-Host ""
+Write-Host "Troubleshooting:" -ForegroundColor Yellow
+Write-Host "  - If containers restart in a loop, check logs:" -ForegroundColor White
+Write-Host "      sudo docker-compose logs -f backend" -ForegroundColor Gray
+Write-Host "  - For Prisma/OpenSSL errors, ensure Dockerfile uses node:20-slim" -ForegroundColor White
+Write-Host "  - For 502 errors, verify backend container is healthy" -ForegroundColor White
+Write-Host ""
