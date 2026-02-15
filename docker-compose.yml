@@ -39,6 +39,8 @@ services:
         condition: service_healthy
     ports:
       - "50001:3000"  # External:Internal - Changed to avoid conflict with YT-Logger
+    volumes:
+      - ./backend/uploads:/app/uploads
     networks:
       - recipes-network
     command: sh -c "npx prisma migrate deploy && npm start"

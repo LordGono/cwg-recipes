@@ -34,13 +34,39 @@ model Recipe {
   servings     Int?
   ingredients  Json     // Array of {item: string, amount: string}
   instructions Json     // Array of {step: number, text: string}
+  isPinned     Boolean  @default(false) @map("is_pinned")
+  imageUrl     String?  @map("image_url")
   createdBy    String   @map("created_by")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   user         User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  tags         RecipeTag[]
 
   @@index([name])
   @@index([createdBy])
+  @@index([isPinned])
   @@map("recipes")
+}
+
+model Tag {
+  id        String      @id @default(uuid())
+  name      String      @unique
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  recipes   RecipeTag[]
+
+  @@map("tags")
+}
+
+model RecipeTag {
+  recipeId  String   @map("recipe_id")
+  tagId     String   @map("tag_id")
+
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([recipeId, tagId])
+  @@map("recipe_tags")
 }

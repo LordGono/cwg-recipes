@@ -1,43 +1,26 @@
 <template>
   <div>
     <div class="flex items-center justify-between mb-6">
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">All Recipes</h1>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">My Recipes</h1>
 
-      <div class="flex items-center space-x-4">
-        <!-- Tag filter -->
-        <div v-if="tagStore.tags.length > 0" class="flex items-center space-x-2">
-          <label class="text-sm text-gray-600 dark:text-gray-400">Tag:</label>
-          <select
-            v-model="selectedTag"
-            @change="handleTagChange"
-            class="input px-3 py-1 text-sm"
-          >
-            <option value="">All</option>
-            <option v-for="tag in tagStore.tags" :key="tag.id" :value="tag.name">
-              {{ tag.name }} ({{ tag._count.recipes }})
-            </option>
-          </select>
-        </div>
-
-        <!-- Sort options -->
-        <div class="flex items-center space-x-2">
-          <label class="text-sm text-gray-600 dark:text-gray-400">Sort by:</label>
-          <select
-            v-model="sortBy"
-            @change="handleSortChange"
-            class="input px-3 py-1 text-sm"
-          >
-            <option value="createdAt">Date Created</option>
-            <option value="updatedAt">Date Updated</option>
-            <option value="name">Name</option>
-          </select>
-          <button
-            @click="toggleSortOrder"
-            class="btn-secondary py-1 px-3 text-sm"
-          >
-            {{ sortOrder === 'desc' ? '↓' : '↑' }}
-          </button>
-        </div>
+      <!-- Sort options -->
+      <div class="flex items-center space-x-2">
+        <label class="text-sm text-gray-600 dark:text-gray-400">Sort by:</label>
+        <select
+          v-model="sortBy"
+          @change="handleSortChange"
+          class="input px-3 py-1 text-sm"
+        >
+          <option value="createdAt">Date Created</option>
+          <option value="updatedAt">Date Updated</option>
+          <option value="name">Name</option>
+        </select>
+        <button
+          @click="toggleSortOrder"
+          class="btn-secondary py-1 px-3 text-sm"
+        >
+          {{ sortOrder === 'desc' ? '↓' : '↑' }}
+        </button>
       </div>
     </div>
 
@@ -60,10 +43,10 @@
       class="text-center py-12"
     >
       <p class="text-gray-600 dark:text-gray-400 mb-4">
-        {{ recipeStore.searchQuery ? 'No recipes found.' : 'No recipes yet. Create your first recipe!' }}
+        {{ recipeStore.searchQuery ? 'No recipes found.' : "You haven't created any recipes yet." }}
       </p>
       <RouterLink
-        v-if="authStore.isAuthenticated && !recipeStore.searchQuery"
+        v-if="!recipeStore.searchQuery"
         to="/recipes/new"
         class="btn-primary inline-block"
       >
@@ -87,7 +70,7 @@
 
     <!-- Results summary -->
     <div v-if="recipeStore.recipes.length > 0" class="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-      Showing {{ recipeStore.recipes.length }} of {{ recipeStore.total }} recipes
+      {{ recipeStore.recipes.length }} recipe{{ recipeStore.recipes.length === 1 ? '' : 's' }}
     </div>
   </div>
 </template>
@@ -95,32 +78,21 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
 import { useRecipeStore } from '@/stores/recipes';
-import { useTagStore } from '@/stores/tags';
 import RecipeCard from '@/components/RecipeCard.vue';
 
-const authStore = useAuthStore();
 const recipeStore = useRecipeStore();
-const tagStore = useTagStore();
 
 const sortBy = ref(recipeStore.sortBy);
 const sortOrder = ref<'asc' | 'desc'>(recipeStore.sortOrder);
-const selectedTag = ref(recipeStore.tagFilter);
 
 onMounted(() => {
-  recipeStore.fetchRecipes();
-  tagStore.fetchTags();
+  recipeStore.fetchMyRecipes();
 });
-
-const handleTagChange = () => {
-  recipeStore.setTagFilter(selectedTag.value);
-  recipeStore.fetchRecipes();
-};
 
 const handleSortChange = () => {
   recipeStore.setSort(sortBy.value, sortOrder.value);
-  recipeStore.fetchRecipes();
+  recipeStore.fetchMyRecipes();
 };
 
 const toggleSortOrder = () => {
@@ -139,6 +111,8 @@ const handleDelete = async (id: string) => {
 const handleTogglePin = async (id: string) => {
   try {
     await recipeStore.togglePinRecipe(id);
+    // Re-fetch my recipes after pin toggle
+    await recipeStore.fetchMyRecipes();
   } catch (error) {
     console.error('Failed to toggle pin:', error);
   }

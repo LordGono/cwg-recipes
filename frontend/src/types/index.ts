@@ -36,6 +36,19 @@ export interface Instruction {
   text: string;
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecipeTag {
+  recipeId: string;
+  tagId: string;
+  tag: Tag;
+}
+
 export interface Recipe {
   id: string;
   name: string;
@@ -46,6 +59,9 @@ export interface Recipe {
   servings?: number;
   ingredients: Ingredient[];
   instructions: Instruction[];
+  isPinned?: boolean;
+  imageUrl?: string;
+  tags?: RecipeTag[];
   createdBy: string;
   user?: {
     id: string;
@@ -64,6 +80,7 @@ export interface RecipeInput {
   servings?: number;
   ingredients: Ingredient[];
   instructions: Instruction[];
+  tags?: string[];
 }
 
 export interface RecipeListResponse {
@@ -81,6 +98,13 @@ export interface RecipeResponse {
   message?: string;
   data: {
     recipe: Recipe;
+  };
+}
+
+export interface TagListResponse {
+  success: boolean;
+  data: {
+    tags: (Tag & { _count: { recipes: number } })[];
   };
 }
 

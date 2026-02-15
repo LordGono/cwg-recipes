@@ -6,6 +6,7 @@ import type {
   RecipeInput,
   RecipeListResponse,
   RecipeResponse,
+  TagListResponse,
   User,
 } from '@/types';
 
@@ -68,8 +69,18 @@ class ApiService {
     order?: string;
     limit?: number;
     offset?: number;
+    tag?: string;
   }): Promise<RecipeListResponse> {
     const response = await this.api.get<RecipeListResponse>('/recipes', { params });
+    return response.data;
+  }
+
+  async getMyRecipes(params?: {
+    search?: string;
+    sortBy?: string;
+    order?: string;
+  }): Promise<RecipeListResponse> {
+    const response = await this.api.get<RecipeListResponse>('/recipes/my-recipes', { params });
     return response.data;
   }
 
@@ -78,18 +89,72 @@ class ApiService {
     return response.data;
   }
 
-  async createRecipe(recipe: RecipeInput): Promise<RecipeResponse> {
+  async createRecipe(recipe: RecipeInput, image?: File): Promise<RecipeResponse> {
+    if (image) {
+      const formData = new FormData();
+      formData.append('image', image);
+      formData.append('name', recipe.name);
+      if (recipe.description) formData.append('description', recipe.description);
+      if (recipe.prepTime != null) formData.append('prepTime', String(recipe.prepTime));
+      if (recipe.cookTime != null) formData.append('cookTime', String(recipe.cookTime));
+      if (recipe.totalTime != null) formData.append('totalTime', String(recipe.totalTime));
+      if (recipe.servings != null) formData.append('servings', String(recipe.servings));
+      formData.append('ingredients', JSON.stringify(recipe.ingredients));
+      formData.append('instructions', JSON.stringify(recipe.instructions));
+      if (recipe.tags) formData.append('tags', JSON.stringify(recipe.tags));
+
+      const response = await this.api.post<RecipeResponse>('/recipes', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    }
+
     const response = await this.api.post<RecipeResponse>('/recipes', recipe);
     return response.data;
   }
 
-  async updateRecipe(id: string, recipe: RecipeInput): Promise<RecipeResponse> {
+  async updateRecipe(id: string, recipe: RecipeInput, image?: File): Promise<RecipeResponse> {
+    if (image) {
+      const formData = new FormData();
+      formData.append('image', image);
+      formData.append('name', recipe.name);
+      if (recipe.description) formData.append('description', recipe.description);
+      if (recipe.prepTime != null) formData.append('prepTime', String(recipe.prepTime));
+      if (recipe.cookTime != null) formData.append('cookTime', String(recipe.cookTime));
+      if (recipe.totalTime != null) formData.append('totalTime', String(recipe.totalTime));
+      if (recipe.servings != null) formData.append('servings', String(recipe.servings));
+      formData.append('ingredients', JSON.stringify(recipe.ingredients));
+      formData.append('instructions', JSON.stringify(recipe.instructions));
+      if (recipe.tags) formData.append('tags', JSON.stringify(recipe.tags));
+
+      const response = await this.api.put<RecipeResponse>(`/recipes/${id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    }
+
     const response = await this.api.put<RecipeResponse>(`/recipes/${id}`, recipe);
     return response.data;
   }
 
   async deleteRecipe(id: string): Promise<{ success: boolean; message: string }> {
     const response = await this.api.delete(`/recipes/${id}`);
+    return response.data;
+  }
+
+  async togglePinRecipe(id: string): Promise<RecipeResponse> {
+    const response = await this.api.patch<RecipeResponse>(`/recipes/${id}/pin`);
+    return response.data;
+  }
+
+  // Tag endpoints
+  async getTags(): Promise<TagListResponse> {
+    const response = await this.api.get<TagListResponse>('/tags');
+    return response.data;
+  }
+
+  async createTag(name: string): Promise<{ success: boolean; data: { tag: { id: string; name: string } } }> {
+    const response = await this.api.post('/tags', { name });
     return response.data;
   }
 }

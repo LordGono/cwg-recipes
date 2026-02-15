@@ -1,13 +1,13 @@
 <template>
   <div class="max-w-md mx-auto">
     <div class="card">
-      <h1 class="text-3xl font-bold text-gray-900 mb-6 text-center">
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-6 text-center">
         {{ isLogin ? 'Login' : 'Register' }}
       </h1>
 
       <form @submit.prevent="handleSubmit" class="space-y-4">
         <div v-if="!isLogin">
-          <label class="block text-sm font-medium text-gray-700 mb-2">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Email *
           </label>
           <input
@@ -20,7 +20,7 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Username *
           </label>
           <input
@@ -33,7 +33,7 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Password *
           </label>
           <input
@@ -43,7 +43,7 @@
             class="input"
             placeholder="••••••••"
           />
-          <p v-if="!isLogin" class="text-xs text-gray-500 mt-1">
+          <p v-if="!isLogin" class="text-xs text-gray-500 dark:text-gray-400 mt-1">
             Minimum 8 characters, with uppercase, lowercase, and number
           </p>
         </div>
@@ -51,7 +51,7 @@
         <!-- Error message -->
         <div
           v-if="authStore.error"
-          class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm"
+          class="bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400 px-4 py-3 rounded text-sm"
         >
           {{ authStore.error }}
         </div>

@@ -1,6 +1,6 @@
 <template>
   <div class="max-w-4xl mx-auto">
-    <h1 class="text-3xl font-bold text-gray-900 mb-6">Create New Recipe</h1>
+    <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-6">Create New Recipe</h1>
 
     <div class="card">
       <RecipeForm
@@ -23,9 +23,9 @@ import type { RecipeInput } from '@/types';
 const router = useRouter();
 const recipeStore = useRecipeStore();
 
-const handleSubmit = async (data: RecipeInput) => {
+const handleSubmit = async (data: RecipeInput, image?: File) => {
   try {
-    const recipe = await recipeStore.createRecipe(data);
+    const recipe = await recipeStore.createRecipe(data, image);
     router.push(`/recipes/${recipe.id}`);
   } catch (error) {
     console.error('Failed to create recipe:', error);

@@ -5,6 +5,7 @@ import LoginView from '@/views/LoginView.vue';
 import RecipeDetailView from '@/views/RecipeDetailView.vue';
 import RecipeCreateView from '@/views/RecipeCreateView.vue';
 import RecipeEditView from '@/views/RecipeEditView.vue';
+import MyRecipesView from '@/views/MyRecipesView.vue';
 
 const routes: RouteRecordRaw[] = [
   {
@@ -17,6 +18,12 @@ const routes: RouteRecordRaw[] = [
     name: 'login',
     component: LoginView,
     meta: { requiresGuest: true },
+  },
+  {
+    path: '/my-recipes',
+    name: 'my-recipes',
+    component: MyRecipesView,
+    meta: { requiresAuth: true },
   },
   {
     path: '/recipes/:id',

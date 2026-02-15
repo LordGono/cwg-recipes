@@ -12,12 +12,33 @@ export const useRecipeStore = defineStore('recipes', () => {
   const searchQuery = ref('');
   const sortBy = ref('createdAt');
   const sortOrder = ref<'asc' | 'desc'>('desc');
+  const tagFilter = ref('');
 
   const fetchRecipes = async () => {
     loading.value = true;
     error.value = null;
     try {
       const response = await api.getRecipes({
+        search: searchQuery.value || undefined,
+        sortBy: sortBy.value,
+        order: sortOrder.value,
+        tag: tagFilter.value || undefined,
+      });
+      recipes.value = response.data.recipes;
+      total.value = response.data.total;
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Failed to fetch recipes';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  const fetchMyRecipes = async () => {
+    loading.value = true;
+    error.value = null;
+    try {
+      const response = await api.getMyRecipes({
         search: searchQuery.value || undefined,
         sortBy: sortBy.value,
         order: sortOrder.value,
@@ -47,11 +68,11 @@ export const useRecipeStore = defineStore('recipes', () => {
     }
   };
 
-  const createRecipe = async (recipe: RecipeInput) => {
+  const createRecipe = async (recipe: RecipeInput, image?: File) => {
     loading.value = true;
     error.value = null;
     try {
-      const response = await api.createRecipe(recipe);
+      const response = await api.createRecipe(recipe, image);
       recipes.value.unshift(response.data.recipe);
       total.value++;
       return response.data.recipe;
@@ -63,11 +84,11 @@ export const useRecipeStore = defineStore('recipes', () => {
     }
   };
 
-  const updateRecipe = async (id: string, recipe: RecipeInput) => {
+  const updateRecipe = async (id: string, recipe: RecipeInput, image?: File) => {
     loading.value = true;
     error.value = null;
     try {
-      const response = await api.updateRecipe(id, recipe);
+      const response = await api.updateRecipe(id, recipe, image);
       const index = recipes.value.findIndex((r) => r.id === id);
       if (index !== -1) {
         recipes.value[index] = response.data.recipe;
@@ -102,6 +123,24 @@ export const useRecipeStore = defineStore('recipes', () => {
     }
   };
 
+  const togglePinRecipe = async (id: string) => {
+    try {
+      const response = await api.togglePinRecipe(id);
+      const index = recipes.value.findIndex((r) => r.id === id);
+      if (index !== -1) {
+        recipes.value[index] = response.data.recipe;
+      }
+      if (currentRecipe.value?.id === id) {
+        currentRecipe.value = response.data.recipe;
+      }
+      // Re-fetch to get correct sort order
+      await fetchRecipes();
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Failed to toggle pin';
+      throw err;
+    }
+  };
+
   const setSearch = (query: string) => {
     searchQuery.value = query;
   };
@@ -109,6 +148,10 @@ export const useRecipeStore = defineStore('recipes', () => {
   const setSort = (field: string, order: 'asc' | 'desc') => {
     sortBy.value = field;
     sortOrder.value = order;
+  };
+
+  const setTagFilter = (tag: string) => {
+    tagFilter.value = tag;
   };
 
   return {
@@ -120,12 +163,16 @@ export const useRecipeStore = defineStore('recipes', () => {
     searchQuery,
     sortBy,
     sortOrder,
+    tagFilter,
     fetchRecipes,
+    fetchMyRecipes,
     fetchRecipe,
     createRecipe,
     updateRecipe,
     deleteRecipe,
+    togglePinRecipe,
     setSearch,
     setSort,
+    setTagFilter,
   };
 });

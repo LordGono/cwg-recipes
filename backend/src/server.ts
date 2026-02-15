@@ -2,10 +2,12 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './routes/auth.routes';
 import recipeRoutes from './routes/recipe.routes';
+import tagRoutes from './routes/tag.routes';
 
 const app = express();
 
@@ -24,6 +26,9 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Static file serving for uploads
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Rate limiting for auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -36,6 +41,7 @@ const authLimiter = rateLimit({
 // API routes
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/recipes', recipeRoutes);
+app.use('/api/tags', tagRoutes);
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
@@ -50,6 +56,7 @@ app.get('/', (_req: Request, res: Response) => {
     endpoints: {
       auth: '/api/auth',
       recipes: '/api/recipes',
+      tags: '/api/tags',
       health: '/health',
     },
   });

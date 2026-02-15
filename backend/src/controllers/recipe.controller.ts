@@ -1,7 +1,73 @@
 import { Request, Response, NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
+import path from 'path';
+import fs from 'fs';
 import prisma from '../config/database';
 import { createError } from '../middleware/errorHandler';
+
+// Helper to include tags in recipe queries
+const recipeInclude = {
+  user: {
+    select: {
+      id: true,
+      username: true,
+    },
+  },
+  tags: {
+    include: {
+      tag: true,
+    },
+  },
+};
+
+// Helper to parse multipart body fields (strings when sent via FormData)
+const parseMultipartBody = (req: Request) => {
+  const isMultipart = req.headers['content-type']?.includes('multipart/form-data');
+  if (!isMultipart) return req.body;
+
+  const body = { ...req.body };
+  if (typeof body.ingredients === 'string') body.ingredients = JSON.parse(body.ingredients);
+  if (typeof body.instructions === 'string') body.instructions = JSON.parse(body.instructions);
+  if (typeof body.tags === 'string') body.tags = JSON.parse(body.tags);
+  if (typeof body.prepTime === 'string') body.prepTime = body.prepTime ? parseInt(body.prepTime) : undefined;
+  if (typeof body.cookTime === 'string') body.cookTime = body.cookTime ? parseInt(body.cookTime) : undefined;
+  if (typeof body.totalTime === 'string') body.totalTime = body.totalTime ? parseInt(body.totalTime) : undefined;
+  if (typeof body.servings === 'string') body.servings = body.servings ? parseInt(body.servings) : undefined;
+  return body;
+};
+
+// Helper to find-or-create tags and connect them to a recipe
+const syncRecipeTags = async (recipeId: string, tagNames: string[]) => {
+  // Delete existing recipe-tag relations
+  await prisma.recipeTag.deleteMany({ where: { recipeId } });
+
+  if (!tagNames || tagNames.length === 0) return;
+
+  for (const name of tagNames) {
+    const normalizedName = name.trim().toLowerCase();
+    if (!normalizedName) continue;
+
+    // Find or create the tag
+    let tag = await prisma.tag.findUnique({ where: { name: normalizedName } });
+    if (!tag) {
+      tag = await prisma.tag.create({ data: { name: normalizedName } });
+    }
+
+    // Create the relation
+    await prisma.recipeTag.create({
+      data: { recipeId, tagId: tag.id },
+    });
+  }
+};
+
+// Helper to delete an image file
+const deleteImageFile = (imageUrl: string | null) => {
+  if (!imageUrl) return;
+  const filePath = path.join(__dirname, '../../', imageUrl);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};
 
 // Validation middleware
 export const recipeValidation = [
@@ -51,7 +117,26 @@ export const recipeValidation = [
     .trim()
     .notEmpty()
     .withMessage('Instruction text is required'),
+  body('tags')
+    .optional()
+    .isArray()
+    .withMessage('Tags must be an array'),
 ];
+
+// Multipart-aware validation middleware (skips body validation when FormData)
+export const recipeMultipartValidation = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+) => {
+  const isMultipart = req.headers['content-type']?.includes('multipart/form-data');
+  if (isMultipart) {
+    // Parse string fields before validation
+    const parsed = parseMultipartBody(req);
+    req.body = parsed;
+  }
+  next();
+};
 
 // Get all recipes with search and filtering
 export const getAllRecipes = async (
@@ -60,7 +145,7 @@ export const getAllRecipes = async (
   next: NextFunction
 ) => {
   try {
-    const { search, sortBy = 'createdAt', order = 'desc', limit, offset } = req.query;
+    const { search, sortBy = 'createdAt', order = 'desc', limit, offset, tag } = req.query;
 
     const where: any = {};
 
@@ -72,27 +157,34 @@ export const getAllRecipes = async (
       ];
     }
 
-    // Build orderBy object
-    const orderBy: any = {};
-    if (sortBy === 'name' || sortBy === 'createdAt' || sortBy === 'updatedAt') {
-      orderBy[sortBy] = order === 'asc' ? 'asc' : 'desc';
-    } else {
-      orderBy.createdAt = 'desc';
+    // Tag filter
+    if (tag && typeof tag === 'string') {
+      where.tags = {
+        some: {
+          tag: { name: tag.toLowerCase() },
+        },
+      };
     }
+
+    // Build orderBy - pinned recipes always first
+    const orderByField: any = {};
+    if (sortBy === 'name' || sortBy === 'createdAt' || sortBy === 'updatedAt') {
+      orderByField[sortBy] = order === 'asc' ? 'asc' : 'desc';
+    } else {
+      orderByField.createdAt = 'desc';
+    }
+
+    const orderBy = [
+      { isPinned: 'desc' as const },
+      orderByField,
+    ];
 
     const recipes = await prisma.recipe.findMany({
       where,
       orderBy,
       take: limit ? parseInt(limit as string) : undefined,
       skip: offset ? parseInt(offset as string) : undefined,
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-          },
-        },
-      },
+      include: recipeInclude,
     });
 
     const total = await prisma.recipe.count({ where });
@@ -104,6 +196,66 @@ export const getAllRecipes = async (
         total,
         limit: limit ? parseInt(limit as string) : recipes.length,
         offset: offset ? parseInt(offset as string) : 0,
+      },
+    }) as any;
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// Get current user's recipes
+export const getMyRecipes = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw createError(401, 'Authentication required');
+    }
+
+    const { search, sortBy = 'createdAt', order = 'desc' } = req.query;
+
+    const where: any = { createdBy: req.user.userId };
+
+    if (search && typeof search === 'string') {
+      where.AND = [
+        {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
+    const orderByField: any = {};
+    if (sortBy === 'name' || sortBy === 'createdAt' || sortBy === 'updatedAt') {
+      orderByField[sortBy] = order === 'asc' ? 'asc' : 'desc';
+    } else {
+      orderByField.createdAt = 'desc';
+    }
+
+    const orderBy = [
+      { isPinned: 'desc' as const },
+      orderByField,
+    ];
+
+    const recipes = await prisma.recipe.findMany({
+      where,
+      orderBy,
+      include: recipeInclude,
+    });
+
+    const total = await prisma.recipe.count({ where });
+
+    return res.json({
+      success: true,
+      data: {
+        recipes,
+        total,
+        limit: recipes.length,
+        offset: 0,
       },
     }) as any;
   } catch (error) {
@@ -123,14 +275,7 @@ export const getRecipeById = async (
 
     const recipe = await prisma.recipe.findUnique({
       where: { id: recipeId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-          },
-        },
-      },
+      include: recipeInclude,
     });
 
     if (!recipe) {
@@ -171,7 +316,11 @@ export const createRecipe = async (
       servings,
       ingredients,
       instructions,
+      tags,
     } = req.body;
+
+    // Handle image upload
+    const imageUrl = req.file ? `uploads/${req.file.filename}` : undefined;
 
     const recipe = await prisma.recipe.create({
       data: {
@@ -183,17 +332,26 @@ export const createRecipe = async (
         servings,
         ingredients,
         instructions,
+        imageUrl,
         createdBy: req.user.userId,
       },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-          },
-        },
-      },
+      include: recipeInclude,
     });
+
+    // Handle tags
+    if (tags && Array.isArray(tags) && tags.length > 0) {
+      await syncRecipeTags(recipe.id, tags);
+      // Re-fetch with tags
+      const updatedRecipe = await prisma.recipe.findUnique({
+        where: { id: recipe.id },
+        include: recipeInclude,
+      });
+      return res.status(201).json({
+        success: true,
+        message: 'Recipe created successfully',
+        data: { recipe: updatedRecipe },
+      }) as any;
+    }
 
     return res.status(201).json({
       success: true,
@@ -232,6 +390,7 @@ export const updateRecipe = async (
       servings,
       ingredients,
       instructions,
+      tags,
     } = req.body;
 
     // Check if recipe exists
@@ -248,6 +407,14 @@ export const updateRecipe = async (
       throw createError(403, 'You do not have permission to update this recipe');
     }
 
+    // Handle image upload
+    let imageUrl = existingRecipe.imageUrl;
+    if (req.file) {
+      // Delete old image if replacing
+      deleteImageFile(existingRecipe.imageUrl);
+      imageUrl = `uploads/${req.file.filename}`;
+    }
+
     const recipe = await prisma.recipe.update({
       where: { id: recipeId },
       data: {
@@ -259,20 +426,68 @@ export const updateRecipe = async (
         servings,
         ingredients,
         instructions,
+        imageUrl,
       },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-          },
-        },
-      },
+      include: recipeInclude,
+    });
+
+    // Handle tags
+    if (tags && Array.isArray(tags)) {
+      await syncRecipeTags(recipe.id, tags);
+    }
+
+    // Re-fetch with updated tags
+    const updatedRecipe = await prisma.recipe.findUnique({
+      where: { id: recipe.id },
+      include: recipeInclude,
     });
 
     return res.json({
       success: true,
       message: 'Recipe updated successfully',
+      data: { recipe: updatedRecipe },
+    }) as any;
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// Toggle pin status
+export const togglePinRecipe = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw createError(401, 'Authentication required');
+    }
+
+    const { id } = req.params;
+    const recipeId = Array.isArray(id) ? id[0] : id;
+
+    const existingRecipe = await prisma.recipe.findUnique({
+      where: { id: recipeId },
+    });
+
+    if (!existingRecipe) {
+      throw createError(404, 'Recipe not found');
+    }
+
+    // Check ownership or admin
+    if (existingRecipe.createdBy !== req.user.userId && !req.user.isAdmin) {
+      throw createError(403, 'You do not have permission to pin this recipe');
+    }
+
+    const recipe = await prisma.recipe.update({
+      where: { id: recipeId },
+      data: { isPinned: !existingRecipe.isPinned },
+      include: recipeInclude,
+    });
+
+    return res.json({
+      success: true,
+      message: recipe.isPinned ? 'Recipe pinned' : 'Recipe unpinned',
       data: { recipe },
     }) as any;
   } catch (error) {
@@ -307,6 +522,9 @@ export const deleteRecipe = async (
     if (existingRecipe.createdBy !== req.user.userId && !req.user.isAdmin) {
       throw createError(403, 'You do not have permission to delete this recipe');
     }
+
+    // Delete image file if exists
+    deleteImageFile(existingRecipe.imageUrl);
 
     await prisma.recipe.delete({
       where: { id: recipeId },

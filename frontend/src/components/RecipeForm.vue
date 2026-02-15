@@ -1,8 +1,36 @@
 <template>
   <form @submit.prevent="handleSubmit" class="space-y-6">
+    <!-- Image upload -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        Recipe Image
+      </label>
+      <div class="flex items-center space-x-4">
+        <img
+          v-if="imagePreview"
+          :src="imagePreview"
+          alt="Preview"
+          class="w-24 h-24 object-cover rounded-lg"
+        />
+        <div>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            @change="handleImageChange"
+            class="block w-full text-sm text-gray-500 dark:text-gray-400
+              file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
+              file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700
+              dark:file:bg-primary-900/30 dark:file:text-primary-400
+              hover:file:bg-primary-100 dark:hover:file:bg-primary-900/50"
+          />
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">JPEG, PNG, GIF, or WebP. Max 5MB.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Basic info -->
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-2">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
         Recipe Name *
       </label>
       <input
@@ -15,7 +43,7 @@
     </div>
 
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-2">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
         Description
       </label>
       <textarea
@@ -26,10 +54,45 @@
       />
     </div>
 
+    <!-- Tags -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        Tags
+      </label>
+      <div v-if="formData.tags && formData.tags.length > 0" class="flex flex-wrap gap-2 mb-2">
+        <span
+          v-for="(tag, index) in formData.tags"
+          :key="index"
+          class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
+        >
+          {{ tag }}
+          <button
+            type="button"
+            @click="removeTag(index)"
+            class="ml-1.5 text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200"
+          >
+            x
+          </button>
+        </span>
+      </div>
+      <div class="flex space-x-2">
+        <input
+          v-model="newTag"
+          type="text"
+          placeholder="Add a tag..."
+          class="input flex-1"
+          @keydown.enter.prevent="addTag"
+        />
+        <button type="button" @click="addTag" class="btn-secondary">
+          Add
+        </button>
+      </div>
+    </div>
+
     <!-- Time and servings -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Prep Time (min)
         </label>
         <input
@@ -41,7 +104,7 @@
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Cook Time (min)
         </label>
         <input
@@ -53,7 +116,7 @@
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Total Time (min)
         </label>
         <input
@@ -65,7 +128,7 @@
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Servings
         </label>
         <input
@@ -79,7 +142,7 @@
 
     <!-- Ingredients -->
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-2">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
         Ingredients *
       </label>
       <div class="space-y-2">
@@ -122,7 +185,7 @@
 
     <!-- Instructions -->
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-2">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
         Instructions *
       </label>
       <div class="space-y-2">
@@ -131,7 +194,7 @@
           :key="index"
           class="flex space-x-2"
         >
-          <span class="text-gray-500 font-medium mt-2">{{ index + 1 }}.</span>
+          <span class="text-gray-500 dark:text-gray-400 font-medium mt-2">{{ index + 1 }}.</span>
           <textarea
             v-model="instruction.text"
             rows="2"
@@ -158,7 +221,7 @@
     </div>
 
     <!-- Error message -->
-    <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+    <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400 px-4 py-3 rounded">
       {{ error }}
     </div>
 
@@ -186,6 +249,8 @@
 import { ref } from 'vue';
 import type { Recipe, RecipeInput } from '@/types';
 
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
 interface Props {
   initialData?: Recipe | null;
   loading?: boolean;
@@ -200,9 +265,13 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  submit: [data: RecipeInput];
+  submit: [data: RecipeInput, image?: File];
   cancel: [];
 }>();
+
+const selectedImage = ref<File | undefined>(undefined);
+const imagePreview = ref<string | null>(null);
+const newTag = ref('');
 
 const formData = ref<RecipeInput>({
   name: '',
@@ -213,6 +282,7 @@ const formData = ref<RecipeInput>({
   servings: undefined,
   ingredients: [{ item: '', amount: '' }],
   instructions: [{ step: 1, text: '' }],
+  tags: [],
 });
 
 // Initialize form with existing data if editing
@@ -226,8 +296,39 @@ if (props.initialData) {
     servings: props.initialData.servings,
     ingredients: [...props.initialData.ingredients],
     instructions: [...props.initialData.instructions],
+    tags: props.initialData.tags?.map((rt) => rt.tag.name) || [],
   };
+
+  // Show existing image
+  if (props.initialData.imageUrl) {
+    const baseUrl = API_URL.replace(/\/api$/, '');
+    imagePreview.value = props.initialData.imageUrl.startsWith('http')
+      ? props.initialData.imageUrl
+      : `${baseUrl}/${props.initialData.imageUrl}`;
+  }
 }
+
+const handleImageChange = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (file) {
+    selectedImage.value = file;
+    imagePreview.value = URL.createObjectURL(file);
+  }
+};
+
+const addTag = () => {
+  const tag = newTag.value.trim().toLowerCase();
+  if (tag && !formData.value.tags?.includes(tag)) {
+    if (!formData.value.tags) formData.value.tags = [];
+    formData.value.tags.push(tag);
+  }
+  newTag.value = '';
+};
+
+const removeTag = (index: number) => {
+  formData.value.tags?.splice(index, 1);
+};
 
 const addIngredient = () => {
   formData.value.ingredients.push({ item: '', amount: '' });
@@ -260,6 +361,6 @@ const handleSubmit = () => {
     instruction.step = i + 1;
   });
 
-  emit('submit', formData.value);
+  emit('submit', formData.value, selectedImage.value);
 };
 </script>

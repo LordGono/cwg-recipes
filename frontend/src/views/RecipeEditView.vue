@@ -1,16 +1,16 @@
 <template>
   <div class="max-w-4xl mx-auto">
-    <h1 class="text-3xl font-bold text-gray-900 mb-6">Edit Recipe</h1>
+    <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-6">Edit Recipe</h1>
 
     <!-- Loading state -->
     <div v-if="loading" class="text-center py-12">
-      <p class="text-gray-600">Loading recipe...</p>
+      <p class="text-gray-600 dark:text-gray-400">Loading recipe...</p>
     </div>
 
     <!-- Error state -->
     <div
       v-else-if="loadError"
-      class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded"
+      class="bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400 px-4 py-3 rounded"
     >
       {{ loadError }}
     </div>
@@ -55,11 +55,11 @@ onMounted(async () => {
   }
 });
 
-const handleSubmit = async (data: RecipeInput) => {
+const handleSubmit = async (data: RecipeInput, image?: File) => {
   if (!recipe.value) return;
 
   try {
-    await recipeStore.updateRecipe(recipe.value.id, data);
+    await recipeStore.updateRecipe(recipe.value.id, data, image);
     router.push(`/recipes/${recipe.value.id}`);
   } catch (error) {
     console.error('Failed to update recipe:', error);
