@@ -41,6 +41,10 @@ Desktop.ini
 postgres-data/
 pgdata/
 
+# Uploaded files (but keep directory structure)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
 # Test coverage
 coverage/
 .nyc_output/
