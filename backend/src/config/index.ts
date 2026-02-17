@@ -9,6 +9,7 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
   databaseUrl: process.env.DATABASE_URL,
+  geminiApiKey: process.env.GEMINI_API_KEY,
 };
 
 // Validate required environment variables

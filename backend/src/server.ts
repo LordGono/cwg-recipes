@@ -8,6 +8,7 @@ import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './routes/auth.routes';
 import recipeRoutes from './routes/recipe.routes';
 import tagRoutes from './routes/tag.routes';
+import importRoutes from './routes/import.routes';
 
 const app = express();
 
@@ -42,6 +43,7 @@ const authLimiter = rateLimit({
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/tags', tagRoutes);
+app.use('/api/import', importRoutes);
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
@@ -57,6 +59,7 @@ app.get('/', (_req: Request, res: Response) => {
       auth: '/api/auth',
       recipes: '/api/recipes',
       tags: '/api/tags',
+      import: '/api/import',
       health: '/health',
     },
   });

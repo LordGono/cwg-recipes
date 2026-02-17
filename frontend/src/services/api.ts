@@ -157,6 +157,44 @@ class ApiService {
     const response = await this.api.post('/tags', { name });
     return response.data;
   }
+
+  // Import endpoints
+  async importFromURL(url: string): Promise<{
+    success: boolean;
+    method: 'structured' | 'gemini';
+    message: string;
+    data: { recipe: RecipeInput };
+    usage?: { rpd: { used: number; remaining: number } };
+  }> {
+    const response = await this.api.post('/import/url', { url });
+    return response.data;
+  }
+
+  async importFromPDF(file: File): Promise<{
+    success: boolean;
+    method: 'gemini';
+    message: string;
+    data: { recipe: RecipeInput };
+  }> {
+    const formData = new FormData();
+    formData.append('pdf', file);
+    const response = await this.api.post('/import/pdf', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  async getImportUsageStats(): Promise<{
+    success: boolean;
+    data: {
+      rpm: { used: number; limit: number; remaining: number };
+      rpd: { used: number; limit: number; remaining: number };
+      tpm?: { used: number; limit: number; remaining: number };
+    };
+  }> {
+    const response = await this.api.get('/import/usage');
+    return response.data;
+  }
 }
 
 export default new ApiService();

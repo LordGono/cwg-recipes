@@ -20,6 +20,7 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   recipes      Recipe[]
+  geminiUsage  GeminiUsage[]
 
   @@map("users")
 }
@@ -69,4 +70,19 @@ model RecipeTag {
 
   @@id([recipeId, tagId])
   @@map("recipe_tags")
+}
+
+model GeminiUsage {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  requestType String   @map("request_type") // 'url' or 'video'
+  tokensUsed  Int?     @map("tokens_used")
+  success     Boolean  @default(true)
+  timestamp   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([timestamp])
+  @@index([userId, timestamp])
+  @@map("gemini_usage")
 }

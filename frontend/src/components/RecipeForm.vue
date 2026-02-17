@@ -246,13 +246,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import type { Recipe, RecipeInput } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 interface Props {
-  initialData?: Recipe | null;
+  initialData?: Recipe | RecipeInput | null;
   loading?: boolean;
   error?: string | null;
   submitLabel?: string;
@@ -296,11 +296,11 @@ if (props.initialData) {
     servings: props.initialData.servings,
     ingredients: [...props.initialData.ingredients],
     instructions: [...props.initialData.instructions],
-    tags: props.initialData.tags?.map((rt) => rt.tag.name) || [],
+    tags: props.initialData.tags?.map((rt: any) => (typeof rt === 'string' ? rt : rt.tag.name)) || [],
   };
 
   // Show existing image
-  if (props.initialData.imageUrl) {
+  if ('imageUrl' in props.initialData && props.initialData.imageUrl) {
     const baseUrl = API_URL.replace(/\/api$/, '');
     imagePreview.value = props.initialData.imageUrl.startsWith('http')
       ? props.initialData.imageUrl
@@ -354,6 +354,35 @@ const removeInstruction = (index: number) => {
     });
   }
 };
+
+// Watch for changes in initialData (e.g., when importing a recipe)
+watch(
+  () => props.initialData,
+  (newData) => {
+    if (newData) {
+      formData.value = {
+        name: newData.name,
+        description: newData.description || '',
+        prepTime: newData.prepTime,
+        cookTime: newData.cookTime,
+        totalTime: newData.totalTime,
+        servings: newData.servings,
+        ingredients: [...newData.ingredients],
+        instructions: [...newData.instructions],
+        tags: newData.tags?.map((rt: any) => (typeof rt === 'string' ? rt : rt.tag.name)) || [],
+      };
+
+      // Show existing image if available
+      if ('imageUrl' in newData && newData.imageUrl) {
+        const baseUrl = API_URL.replace(/\/api$/, '');
+        imagePreview.value = newData.imageUrl.startsWith('http')
+          ? newData.imageUrl
+          : `${baseUrl}/${newData.imageUrl}`;
+      }
+    }
+  },
+  { deep: true }
+);
 
 const handleSubmit = () => {
   // Update step numbers before submitting
