@@ -71,7 +71,24 @@
           <span v-if="recipe.prepTime">Prep: {{ recipe.prepTime }} min</span>
           <span v-if="recipe.cookTime">Cook: {{ recipe.cookTime }} min</span>
           <span v-if="recipe.totalTime">Total: {{ recipe.totalTime }} min</span>
-          <span v-if="recipe.servings">Servings: {{ recipe.servings }}</span>
+          <!-- Serving scaler -->
+          <div v-if="recipe.servings" class="flex items-center gap-2">
+            <span>Servings:</span>
+            <button
+              @click="scaleServings = Math.max(1, scaleServings - 1)"
+              class="w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-bold leading-none"
+            >−</button>
+            <span class="w-6 text-center font-semibold text-gray-900 dark:text-gray-100">{{ scaleServings }}</span>
+            <button
+              @click="scaleServings++"
+              class="w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-bold leading-none"
+            >+</button>
+            <button
+              v-if="scaleServings !== recipe.servings"
+              @click="scaleServings = recipe.servings"
+              class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+            >reset</button>
+          </div>
         </div>
 
         <div class="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -88,7 +105,7 @@
           <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Ingredients</h2>
           <ul class="space-y-2">
             <li
-              v-for="(ingredient, index) in recipe.ingredients"
+              v-for="(ingredient, index) in scaledIngredients"
               :key="index"
               class="flex items-start"
             >
@@ -129,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute, useRouter, RouterLink } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useRecipeStore } from '@/stores/recipes';
@@ -145,6 +162,98 @@ const recipeStore = useRecipeStore();
 const recipe = ref<Recipe | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const scaleServings = ref(1);
+
+// Keep scaleServings in sync when recipe loads
+watch(() => recipe.value?.servings, (s) => {
+  if (s) scaleServings.value = s;
+});
+
+// --- Scaling helpers ---
+
+const UNICODE_FRACTIONS: Record<string, number> = {
+  '¼': 0.25, '½': 0.5, '¾': 0.75,
+  '⅓': 1/3, '⅔': 2/3,
+  '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875,
+};
+
+function parseAmount(str: string): number | null {
+  // Replace unicode fractions with decimal equivalents
+  let s = str.trim();
+  for (const [ch, val] of Object.entries(UNICODE_FRACTIONS)) {
+    s = s.replace(ch, ` ${val}`);
+  }
+  s = s.trim();
+
+  // Mixed number: "1 1/2" or "1 0.5"
+  const mixed = s.match(/^(\d+(?:\.\d+)?)\s+(\d+)\/(\d+)$/);
+  if (mixed) return parseFloat(mixed[1]) + parseInt(mixed[2]) / parseInt(mixed[3]);
+
+  // Simple fraction: "1/2"
+  const frac = s.match(/^(\d+)\/(\d+)$/);
+  if (frac) return parseInt(frac[1]) / parseInt(frac[2]);
+
+  // Plain number (possibly with decimal from unicode sub)
+  const num = parseFloat(s);
+  if (!isNaN(num)) return num;
+
+  return null;
+}
+
+// Common fractions to snap to (denominator ≤ 8)
+const FRACTIONS = [
+  [1,8],[1,4],[1,3],[3,8],[1,2],[5,8],[2,3],[3,4],[7,8],
+];
+
+function formatAmount(value: number): string {
+  if (value <= 0) return '0';
+
+  const whole = Math.floor(value);
+  const rem = value - whole;
+
+  if (rem < 0.01) return whole === 0 ? '0' : String(whole);
+
+  // Find closest simple fraction
+  let bestFrac = '';
+  let bestDiff = Infinity;
+  for (const [n, d] of FRACTIONS) {
+    const diff = Math.abs(rem - n / d);
+    if (diff < bestDiff) { bestDiff = diff; bestFrac = `${n}/${d}`; }
+  }
+
+  // If close enough to a fraction, use it; otherwise 1 decimal place
+  if (bestDiff < 0.04) {
+    return whole > 0 ? `${whole} ${bestFrac}` : bestFrac;
+  }
+
+  const rounded = Math.round(value * 10) / 10;
+  return rounded % 1 === 0 ? String(rounded) : rounded.toFixed(1);
+}
+
+const scaledIngredients = computed(() => {
+  if (!recipe.value) return [];
+  const originalServings = recipe.value.servings;
+  if (!originalServings || scaleServings.value === originalServings) {
+    return recipe.value.ingredients;
+  }
+
+  const factor = scaleServings.value / originalServings;
+
+  return recipe.value.ingredients.map((ing) => {
+    // Amount may be "2 cups" — split numeric prefix from unit suffix
+    const match = ing.amount.match(/^([¼½¾⅓⅔⅛⅜⅝⅞\d\s\/\.]+)(.*)/u);
+    if (!match) return ing;
+
+    const numStr = match[1].trim();
+    const unit = match[2].trim();
+    const parsed = parseAmount(numStr);
+
+    if (parsed === null) return ing; // "to taste", "pinch", etc.
+
+    const scaled = formatAmount(parsed * factor);
+    return { ...ing, amount: unit ? `${scaled} ${unit}` : scaled };
+  });
+});
 
 const canEdit = computed(() => {
   if (!authStore.isAuthenticated || !recipe.value) return false;
