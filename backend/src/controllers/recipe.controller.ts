@@ -142,6 +142,15 @@ export const recipeValidation = [
     }),
 ];
 
+// Find recipe IDs whose ingredients contain the search string (case-insensitive)
+const findRecipeIdsByIngredient = async (search: string): Promise<string[]> => {
+  const pattern = `%${search}%`;
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM recipes WHERE ingredients::text ILIKE ${pattern}
+  `;
+  return rows.map((r) => r.id);
+};
+
 // Multipart-aware validation middleware (skips body validation when FormData)
 export const recipeMultipartValidation = (
   req: Request,
@@ -168,11 +177,13 @@ export const getAllRecipes = async (
 
     const where: any = {};
 
-    // Search functionality
+    // Search functionality (name, description, and ingredients)
     if (search && typeof search === 'string') {
+      const ingredientIds = await findRecipeIdsByIngredient(search);
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
+        ...(ingredientIds.length > 0 ? [{ id: { in: ingredientIds } }] : []),
       ];
     }
 
@@ -238,11 +249,13 @@ export const getMyRecipes = async (
     const where: any = { createdBy: req.user.userId };
 
     if (search && typeof search === 'string') {
+      const ingredientIds = await findRecipeIdsByIngredient(search);
       where.AND = [
         {
           OR: [
             { name: { contains: search, mode: 'insensitive' } },
             { description: { contains: search, mode: 'insensitive' } },
+            ...(ingredientIds.length > 0 ? [{ id: { in: ingredientIds } }] : []),
           ],
         },
       ];

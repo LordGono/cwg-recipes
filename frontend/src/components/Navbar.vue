@@ -15,7 +15,7 @@
             v-model="searchQuery"
             @input="handleSearch"
             type="text"
-            placeholder="Search recipes..."
+            placeholder="Search recipes or ingredients..."
             class="input"
           />
         </div>

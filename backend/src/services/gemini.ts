@@ -2,9 +2,19 @@ import { GoogleGenAI } from '@google/genai';
 import { config } from '../config';
 import { createError } from '../middleware/errorHandler';
 
-// Initialize Gemini AI
-const ai = new GoogleGenAI({ apiKey: config.geminiApiKey || '' });
-const GEMINI_MODEL = config.geminiModel || 'gemini-3-flash-preview';
+const GEMINI_MODEL = config.geminiModel || 'gemini-2.0-flash';
+
+// Lazy-initialize so the server starts even without a key configured
+let _ai: GoogleGenAI | null = null;
+function getAI(): GoogleGenAI {
+  if (!_ai) {
+    if (!config.geminiApiKey) {
+      throw createError(503, 'Gemini API key is not configured');
+    }
+    _ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
+  }
+  return _ai;
+}
 
 interface RecipeData {
   name: string;
@@ -97,7 +107,7 @@ export async function extractRecipeFromHTML(htmlContent: string): Promise<Extrac
   }
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: GEMINI_MODEL,
       contents: `${RECIPE_EXTRACTION_PROMPT}\n\nRecipe page content:\n${htmlContent}`,
     });
@@ -119,7 +129,7 @@ export async function extractRecipeFromPDF(pdfBuffer: Buffer): Promise<Extractio
   }
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: GEMINI_MODEL,
       contents: [
         {
@@ -207,7 +217,7 @@ export async function calculateMacros(
   const prompt = `${MACRO_PROMPT}${servingsLine}Ingredients:\n${ingredientList}`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: GEMINI_MODEL,
       contents: prompt,
     });
@@ -242,7 +252,7 @@ export async function testGeminiConnection(): Promise<boolean> {
     if (!config.geminiApiKey) {
       return false;
     }
-    await ai.models.generateContent({ model: GEMINI_MODEL, contents: 'Test' });
+    await getAI().models.generateContent({ model: GEMINI_MODEL, contents: 'Test' });
     return true;
   } catch {
     return false;
