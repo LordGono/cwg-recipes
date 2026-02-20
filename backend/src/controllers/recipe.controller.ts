@@ -590,7 +590,7 @@ export const calculateRecipeMacros = async (
 
     await prisma.recipe.update({
       where: { id: recipeId },
-      data: { macros },
+      data: { macros: macros as object },
     });
 
     return res.json({
