@@ -7,6 +7,7 @@ import type {
   RecipeListResponse,
   RecipeResponse,
   TagListResponse,
+  MacroData,
   User,
 } from '@/types';
 
@@ -146,6 +147,11 @@ class ApiService {
 
   async togglePinRecipe(id: string): Promise<RecipeResponse> {
     const response = await this.api.patch<RecipeResponse>(`/recipes/${id}/pin`);
+    return response.data;
+  }
+
+  async calculateMacros(id: string): Promise<{ success: boolean; data: { macros: MacroData } }> {
+    const response = await this.api.post(`/recipes/${id}/macros`);
     return response.data;
   }
 

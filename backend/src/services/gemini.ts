@@ -158,6 +158,82 @@ export async function extractRecipeFromVideo(
   throw createError(501, 'Video import not yet implemented');
 }
 
+export interface MacroData {
+  calories: number;
+  protein: number; // grams
+  carbs: number;   // grams
+  fat: number;     // grams
+  fiber?: number;  // grams
+}
+
+const MACRO_PROMPT = `You are a nutrition expert. Given the recipe ingredients below, estimate the macronutrients PER SERVING.
+
+Return ONLY valid JSON (no markdown, no code blocks, just raw JSON):
+{
+  "calories": 450,
+  "protein": 25,
+  "carbs": 35,
+  "fat": 18,
+  "fiber": 5
+}
+
+Rules:
+- All values are PER SERVING (divide total by number of servings)
+- Calories in kcal, all others in grams
+- Base estimates on USDA nutritional data
+- Be realistic — round to whole numbers
+- Include fiber if the recipe has significant fiber sources
+- If servings count is unknown, assume 4 servings
+
+Recipe:
+`;
+
+/**
+ * Estimate macronutrients per serving for a recipe using Gemini AI
+ */
+export async function calculateMacros(
+  ingredients: Array<{ item: string; amount: string }>,
+  servings: number | null | undefined
+): Promise<MacroData> {
+  if (!config.geminiApiKey) {
+    throw createError(500, 'Gemini API key not configured');
+  }
+
+  const ingredientList = ingredients
+    .map((ing) => `- ${ing.amount} ${ing.item}`)
+    .join('\n');
+
+  const servingsLine = servings ? `Servings: ${servings}\n` : '';
+  const prompt = `${MACRO_PROMPT}${servingsLine}Ingredients:\n${ingredientList}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+    });
+
+    let text = (response.text ?? '').trim();
+    if (text.startsWith('```')) {
+      text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+
+    const data = JSON.parse(text) as MacroData;
+    if (typeof data.calories !== 'number' || typeof data.protein !== 'number') {
+      throw createError(500, 'Invalid macro data returned by AI');
+    }
+
+    return {
+      calories: Math.round(data.calories),
+      protein: Math.round(data.protein),
+      carbs: Math.round(data.carbs),
+      fat: Math.round(data.fat),
+      fiber: data.fiber != null ? Math.round(data.fiber) : undefined,
+    };
+  } catch (error: any) {
+    handleGeminiError(error);
+  }
+}
+
 /**
  * Test Gemini API connection
  */

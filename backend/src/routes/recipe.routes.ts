@@ -7,6 +7,7 @@ import {
   updateRecipe,
   deleteRecipe,
   togglePinRecipe,
+  calculateRecipeMacros,
   recipeValidation,
   recipeMultipartValidation,
 } from '../controllers/recipe.controller';
@@ -40,6 +41,7 @@ router.put(
   updateRecipe
 );
 router.patch('/:id/pin', authenticate, togglePinRecipe);
+router.post('/:id/macros', authenticate, calculateRecipeMacros);
 router.delete('/:id', authenticate, deleteRecipe);
 
 export default router;

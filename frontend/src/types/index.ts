@@ -36,6 +36,14 @@ export interface Instruction {
   text: string;
 }
 
+export interface MacroData {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+}
+
 export interface Tag {
   id: string;
   name: string;
@@ -62,6 +70,7 @@ export interface Recipe {
   isPinned?: boolean;
   imageUrl?: string;
   videoUrl?: string;
+  macros?: MacroData;
   tags?: RecipeTag[];
   createdBy: string;
   user?: {

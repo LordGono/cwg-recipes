@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import prisma from '../config/database';
 import { createError } from '../middleware/errorHandler';
+import { calculateMacros } from '../services/gemini';
 
 // Helper to include tags in recipe queries
 const recipeInclude = {
@@ -555,6 +556,46 @@ export const deleteRecipe = async (
     return res.json({
       success: true,
       message: 'Recipe deleted successfully',
+    }) as any;
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// Calculate and persist macros for a recipe
+export const calculateRecipeMacros = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw createError(401, 'Authentication required');
+    }
+
+    const { id } = req.params;
+    const recipeId = Array.isArray(id) ? id[0] : id;
+
+    const recipe = await prisma.recipe.findUnique({ where: { id: recipeId } });
+    if (!recipe) {
+      throw createError(404, 'Recipe not found');
+    }
+
+    if (recipe.createdBy !== req.user.userId && !req.user.isAdmin) {
+      throw createError(403, 'You do not have permission to update this recipe');
+    }
+
+    const ingredients = recipe.ingredients as Array<{ item: string; amount: string }>;
+    const macros = await calculateMacros(ingredients, recipe.servings);
+
+    await prisma.recipe.update({
+      where: { id: recipeId },
+      data: { macros },
+    });
+
+    return res.json({
+      success: true,
+      data: { macros },
     }) as any;
   } catch (error) {
     return next(error);

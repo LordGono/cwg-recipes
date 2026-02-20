@@ -135,6 +135,25 @@
         </div>
       </div>
 
+      <!-- Nutrition / Macros -->
+      <div class="mt-8">
+        <MacroChart v-if="recipe.macros" :macros="recipe.macros" />
+        <div v-else-if="canEdit" class="card flex items-center justify-between">
+          <div>
+            <p class="font-medium text-gray-900 dark:text-gray-100">Nutrition Estimate</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Let AI calculate macros per serving from the ingredients.</p>
+          </div>
+          <button
+            @click="handleCalculateMacros"
+            :disabled="macrosLoading"
+            class="btn-secondary flex-shrink-0 ml-4"
+          >
+            {{ macrosLoading ? 'Calculating...' : 'Calculate Nutrition' }}
+          </button>
+        </div>
+        <p v-if="macrosError" class="mt-2 text-sm text-red-600 dark:text-red-400">{{ macrosError }}</p>
+      </div>
+
       <!-- YouTube embed -->
       <div v-if="youtubeEmbedUrl" class="mt-8">
         <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Video</h2>
@@ -164,6 +183,8 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute, useRouter, RouterLink } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useRecipeStore } from '@/stores/recipes';
+import api from '@/services/api';
+import MacroChart from '@/components/MacroChart.vue';
 import type { Recipe } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -176,6 +197,8 @@ const recipeStore = useRecipeStore();
 const recipe = ref<Recipe | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const macrosLoading = ref(false);
+const macrosError = ref<string | null>(null);
 const scaleServings = ref(1);
 
 // Keep scaleServings in sync when recipe loads
@@ -315,6 +338,20 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+const handleCalculateMacros = async () => {
+  if (!recipe.value) return;
+  macrosLoading.value = true;
+  macrosError.value = null;
+  try {
+    const response = await api.calculateMacros(recipe.value.id);
+    recipe.value = { ...recipe.value, macros: response.data.macros };
+  } catch (err: any) {
+    macrosError.value = err.response?.data?.message || 'Failed to calculate nutrition';
+  } finally {
+    macrosLoading.value = false;
+  }
+};
 
 const handleTogglePin = async () => {
   if (!recipe.value) return;
