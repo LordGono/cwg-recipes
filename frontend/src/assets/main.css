@@ -8,6 +8,45 @@
   }
 }
 
+@media print {
+  /* Force light mode regardless of user preference */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Flatten cards — no shadows, white background */
+  .card {
+    background: white !important;
+    box-shadow: none !important;
+    border: 1px solid #d1d5db !important;
+    break-inside: avoid;
+  }
+
+  /* Remove max-width so content fills the page */
+  .max-w-4xl {
+    max-width: 100% !important;
+  }
+
+  /* Keep tag pills readable without color fills */
+  span.bg-primary-100 {
+    background: transparent !important;
+    border: 1px solid #6366f1 !important;
+  }
+
+  /* Constrain recipe image height on print */
+  .recipe-image {
+    max-height: 280px !important;
+    object-fit: cover !important;
+  }
+
+  /* Ensure SVG (donut chart) colors print */
+  svg {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
 @layer components {
   .btn {
     @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200;

@@ -20,7 +20,7 @@
         v-if="recipe.imageUrl"
         :src="getImageUrl(recipe.imageUrl)"
         :alt="recipe.name"
-        class="w-full h-64 md:h-96 object-cover rounded-lg mb-6"
+        class="recipe-image w-full h-64 md:h-96 object-cover rounded-lg mb-6"
       />
 
       <!-- Header -->
@@ -35,19 +35,28 @@
               Pinned
             </span>
           </div>
-          <div v-if="canEdit" class="flex space-x-2">
-            <button @click="handleTogglePin" class="btn-secondary">
-              {{ recipe.isPinned ? 'Unpin' : 'Pin' }}
-            </button>
-            <RouterLink
-              :to="`/recipes/${recipe.id}/edit`"
-              class="btn-secondary"
+          <div class="flex items-center space-x-2">
+            <button
+              @click="handlePrint"
+              class="btn-secondary print:hidden"
+              title="Print recipe"
             >
-              Edit
-            </RouterLink>
-            <button @click="handleDelete" class="btn-danger">
-              Delete
+              Print
             </button>
+            <template v-if="canEdit">
+              <button @click="handleTogglePin" class="btn-secondary print:hidden">
+                {{ recipe.isPinned ? 'Unpin' : 'Pin' }}
+              </button>
+              <RouterLink
+                :to="`/recipes/${recipe.id}/edit`"
+                class="btn-secondary print:hidden"
+              >
+                Edit
+              </RouterLink>
+              <button @click="handleDelete" class="btn-danger print:hidden">
+                Delete
+              </button>
+            </template>
           </div>
         </div>
 
@@ -71,8 +80,10 @@
           <span v-if="recipe.prepTime">Prep: {{ recipe.prepTime }} min</span>
           <span v-if="recipe.cookTime">Cook: {{ recipe.cookTime }} min</span>
           <span v-if="recipe.totalTime">Total: {{ recipe.totalTime }} min</span>
-          <!-- Serving scaler -->
-          <div v-if="recipe.servings" class="flex items-center gap-2">
+          <!-- Static servings label for print -->
+          <span v-if="recipe.servings" class="hidden print:inline">Servings: {{ recipe.servings }}</span>
+          <!-- Serving scaler (hidden on print) -->
+          <div v-if="recipe.servings" class="flex items-center gap-2 print:hidden">
             <span>Servings:</span>
             <button
               @click="scaleServings = Math.max(1, scaleServings - 1)"
@@ -138,7 +149,7 @@
       <!-- Nutrition / Macros -->
       <div class="mt-8">
         <MacroChart v-if="recipe.macros" :macros="recipe.macros" />
-        <div v-else-if="canEdit" class="card flex items-center justify-between">
+        <div v-else-if="canEdit" class="card flex items-center justify-between print:hidden">
           <div>
             <p class="font-medium text-gray-900 dark:text-gray-100">Nutrition Estimate</p>
             <p class="text-sm text-gray-500 dark:text-gray-400">Let AI calculate macros per serving from the ingredients.</p>
@@ -151,11 +162,11 @@
             {{ macrosLoading ? 'Calculating...' : 'Calculate Nutrition' }}
           </button>
         </div>
-        <p v-if="macrosError" class="mt-2 text-sm text-red-600 dark:text-red-400">{{ macrosError }}</p>
+        <p v-if="macrosError" class="mt-2 text-sm text-red-600 dark:text-red-400 print:hidden">{{ macrosError }}</p>
       </div>
 
-      <!-- YouTube embed -->
-      <div v-if="youtubeEmbedUrl" class="mt-8">
+      <!-- YouTube embed (hidden on print — show URL as text instead) -->
+      <div v-if="youtubeEmbedUrl" class="mt-8 print:hidden">
         <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Video</h2>
         <div class="relative w-full" style="padding-bottom: 56.25%;">
           <iframe
@@ -169,7 +180,7 @@
       </div>
 
       <!-- Back button -->
-      <div class="mt-8">
+      <div class="mt-8 print:hidden">
         <RouterLink to="/" class="btn-secondary">
           &larr; Back to Recipes
         </RouterLink>
@@ -291,6 +302,8 @@ const scaledIngredients = computed(() => {
     return { ...ing, amount: unit ? `${scaled} ${unit}` : scaled };
   });
 });
+
+const handlePrint = () => window.print();
 
 const canEdit = computed(() => {
   if (!authStore.isAuthenticated || !recipe.value) return false;

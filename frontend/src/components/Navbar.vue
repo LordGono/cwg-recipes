@@ -1,5 +1,5 @@
 <template>
-  <nav class="bg-white shadow-md dark:bg-gray-800 dark:shadow-lg dark:shadow-black/20">
+  <nav class="bg-white shadow-md dark:bg-gray-800 dark:shadow-lg dark:shadow-black/20 print:hidden">
     <div class="container mx-auto px-4">
       <div class="flex items-center justify-between h-16">
         <!-- Logo and brand -->
