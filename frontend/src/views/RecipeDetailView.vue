@@ -135,6 +135,20 @@
         </div>
       </div>
 
+      <!-- YouTube embed -->
+      <div v-if="youtubeEmbedUrl" class="mt-8">
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Video</h2>
+        <div class="relative w-full" style="padding-bottom: 56.25%;">
+          <iframe
+            :src="youtubeEmbedUrl"
+            class="absolute inset-0 w-full h-full rounded-lg"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+          />
+        </div>
+      </div>
+
       <!-- Back button -->
       <div class="mt-8">
         <RouterLink to="/" class="btn-secondary">
@@ -260,6 +274,29 @@ const canEdit = computed(() => {
   return (
     authStore.user?.id === recipe.value.createdBy || authStore.isAdmin
   );
+});
+
+const youtubeEmbedUrl = computed((): string | null => {
+  const url = recipe.value?.videoUrl;
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    let videoId: string | null = null;
+    if (parsed.hostname === 'youtu.be') {
+      videoId = parsed.pathname.slice(1).split('?')[0];
+    } else if (parsed.hostname.includes('youtube.com')) {
+      if (parsed.pathname === '/watch') {
+        videoId = parsed.searchParams.get('v');
+      } else if (parsed.pathname.startsWith('/embed/')) {
+        videoId = parsed.pathname.split('/embed/')[1].split('?')[0];
+      } else if (parsed.pathname.startsWith('/shorts/')) {
+        videoId = parsed.pathname.split('/shorts/')[1].split('?')[0];
+      }
+    }
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+  } catch {
+    return null;
+  }
 });
 
 const getImageUrl = (imageUrl: string): string => {

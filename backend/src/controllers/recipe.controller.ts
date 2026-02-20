@@ -121,6 +121,24 @@ export const recipeValidation = [
     .optional()
     .isArray()
     .withMessage('Tags must be an array'),
+  body('videoUrl')
+    .optional({ nullable: true })
+    .trim()
+    .custom((val) => {
+      if (!val) return true;
+      try {
+        const u = new URL(val);
+        const isYouTube =
+          u.hostname === 'youtu.be' ||
+          u.hostname === 'www.youtube.com' ||
+          u.hostname === 'youtube.com' ||
+          u.hostname === 'm.youtube.com';
+        if (!isYouTube) throw new Error();
+        return true;
+      } catch {
+        throw new Error('Video URL must be a valid YouTube link');
+      }
+    }),
 ];
 
 // Multipart-aware validation middleware (skips body validation when FormData)
@@ -317,6 +335,7 @@ export const createRecipe = async (
       ingredients,
       instructions,
       tags,
+      videoUrl,
     } = req.body;
 
     // Handle image upload
@@ -333,6 +352,7 @@ export const createRecipe = async (
         ingredients,
         instructions,
         imageUrl,
+        videoUrl: videoUrl || null,
         createdBy: req.user.userId,
       },
       include: recipeInclude,
@@ -391,6 +411,7 @@ export const updateRecipe = async (
       ingredients,
       instructions,
       tags,
+      videoUrl,
     } = req.body;
 
     // Check if recipe exists
@@ -427,6 +448,7 @@ export const updateRecipe = async (
         ingredients,
         instructions,
         imageUrl,
+        videoUrl: videoUrl !== undefined ? (videoUrl || null) : existingRecipe.videoUrl,
       },
       include: recipeInclude,
     });

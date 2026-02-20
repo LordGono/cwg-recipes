@@ -61,6 +61,7 @@ export interface Recipe {
   instructions: Instruction[];
   isPinned?: boolean;
   imageUrl?: string;
+  videoUrl?: string;
   tags?: RecipeTag[];
   createdBy: string;
   user?: {
@@ -81,6 +82,7 @@ export interface RecipeInput {
   ingredients: Ingredient[];
   instructions: Instruction[];
   tags?: string[];
+  videoUrl?: string;
 }
 
 export interface RecipeListResponse {

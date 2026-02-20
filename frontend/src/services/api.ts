@@ -102,6 +102,7 @@ class ApiService {
       formData.append('ingredients', JSON.stringify(recipe.ingredients));
       formData.append('instructions', JSON.stringify(recipe.instructions));
       if (recipe.tags) formData.append('tags', JSON.stringify(recipe.tags));
+      if (recipe.videoUrl != null) formData.append('videoUrl', recipe.videoUrl);
 
       const response = await this.api.post<RecipeResponse>('/recipes', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -126,6 +127,7 @@ class ApiService {
       formData.append('ingredients', JSON.stringify(recipe.ingredients));
       formData.append('instructions', JSON.stringify(recipe.instructions));
       if (recipe.tags) formData.append('tags', JSON.stringify(recipe.tags));
+      if (recipe.videoUrl != null) formData.append('videoUrl', recipe.videoUrl);
 
       const response = await this.api.put<RecipeResponse>(`/recipes/${id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },

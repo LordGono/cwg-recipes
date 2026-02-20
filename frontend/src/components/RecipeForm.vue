@@ -54,6 +54,20 @@
       />
     </div>
 
+    <!-- Video URL -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        YouTube Video URL
+      </label>
+      <input
+        v-model="formData.videoUrl"
+        type="url"
+        class="input"
+        placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+      />
+      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional — paste a YouTube link to embed the video on the recipe page.</p>
+    </div>
+
     <!-- Tags -->
     <div>
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -283,6 +297,7 @@ const formData = ref<RecipeInput>({
   ingredients: [{ item: '', amount: '' }],
   instructions: [{ step: 1, text: '' }],
   tags: [],
+  videoUrl: '',
 });
 
 // Initialize form with existing data if editing
@@ -297,6 +312,7 @@ if (props.initialData) {
     ingredients: [...props.initialData.ingredients],
     instructions: [...props.initialData.instructions],
     tags: props.initialData.tags?.map((rt: any) => (typeof rt === 'string' ? rt : rt.tag.name)) || [],
+    videoUrl: ('videoUrl' in props.initialData ? props.initialData.videoUrl : undefined) || '',
   };
 
   // Show existing image
@@ -370,6 +386,7 @@ watch(
         ingredients: [...newData.ingredients],
         instructions: [...newData.instructions],
         tags: newData.tags?.map((rt: any) => (typeof rt === 'string' ? rt : rt.tag.name)) || [],
+        videoUrl: ('videoUrl' in newData ? newData.videoUrl : undefined) || '',
       };
 
       // Show existing image if available
