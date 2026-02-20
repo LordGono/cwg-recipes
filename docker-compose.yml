@@ -25,6 +25,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        BUILD_TIMESTAMP: ${BUILD_TIMESTAMP:-0}
     container_name: cwg-recipes-backend
     restart: unless-stopped
     environment:
@@ -35,6 +37,7 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       FRONTEND_URL: ${FRONTEND_URL}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3-flash-preview}
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +56,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL}
+        BUILD_TIMESTAMP: ${BUILD_TIMESTAMP:-0}
     container_name: cwg-recipes-frontend
     restart: unless-stopped
     depends_on:

@@ -1,9 +1,10 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { config } from '../config';
 import { createError } from '../middleware/errorHandler';
 
 // Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(config.geminiApiKey || '');
+const ai = new GoogleGenAI({ apiKey: config.geminiApiKey || '' });
+const GEMINI_MODEL = config.geminiModel || 'gemini-3-flash-preview';
 
 interface RecipeData {
   name: string;
@@ -55,6 +56,38 @@ Rules:
 Analyze this content and extract the recipe:
 `;
 
+function cleanAndParseResponse(text: string): RecipeData {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.replace(/^```json\n/, '').replace(/\n```$/, '');
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```\n/, '').replace(/\n```$/, '');
+  }
+  const recipe: RecipeData = JSON.parse(cleaned);
+  if (!recipe.name || !recipe.ingredients || !recipe.instructions) {
+    throw createError(400, 'Extracted recipe is missing required fields');
+  }
+  return recipe;
+}
+
+function handleGeminiError(error: any): never {
+  if (error.statusCode) throw error;
+
+  const msg: string = error.message || '';
+  console.error('[Gemini] API error:', msg);
+
+  if (msg.includes('API key') || msg.includes('API_KEY')) {
+    throw createError(500, 'Invalid Gemini API key');
+  }
+  if (msg.includes('quota') || msg.includes('429') || error.status === 429) {
+    throw createError(429, 'Gemini API quota exceeded. Please try again shortly.');
+  }
+  if (error instanceof SyntaxError) {
+    throw createError(500, 'Failed to parse recipe data from AI response');
+  }
+  throw createError(500, `Recipe extraction failed: ${msg}`);
+}
+
 /**
  * Extract recipe from HTML content using Gemini API
  */
@@ -64,58 +97,16 @@ export async function extractRecipeFromHTML(htmlContent: string): Promise<Extrac
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: `${RECIPE_EXTRACTION_PROMPT}\n\nRecipe page content:\n${htmlContent}`,
+    });
 
-    const result = await model.generateContent([
-      RECIPE_EXTRACTION_PROMPT,
-      `Recipe page content:\n${htmlContent}`,
-    ]);
-
-    const response = result.response;
-    const text = response.text();
-
-    // Clean up response (remove markdown code blocks if present)
-    let cleanedText = text.trim();
-    if (cleanedText.startsWith('```json')) {
-      cleanedText = cleanedText.replace(/^```json\n/, '').replace(/\n```$/, '');
-    } else if (cleanedText.startsWith('```')) {
-      cleanedText = cleanedText.replace(/^```\n/, '').replace(/\n```$/, '');
-    }
-
-    // Parse JSON
-    const recipe: RecipeData = JSON.parse(cleanedText);
-
-    // Validate required fields
-    if (!recipe.name || !recipe.ingredients || !recipe.instructions) {
-      throw createError(400, 'Extracted recipe is missing required fields');
-    }
-
-    // Get token usage (if available)
+    const recipe = cleanAndParseResponse(response.text ?? '');
     const tokensUsed = response.usageMetadata?.totalTokenCount;
-
-    return {
-      recipe,
-      tokensUsed,
-    };
+    return { recipe, tokensUsed };
   } catch (error: any) {
-    if (error.statusCode) {
-      throw error; // Re-throw our custom errors
-    }
-
-    // Handle Gemini API errors
-    if (error.message?.includes('API key')) {
-      throw createError(500, 'Invalid Gemini API key');
-    }
-
-    if (error.message?.includes('quota') || error.message?.includes('429')) {
-      throw createError(429, 'Gemini API quota exceeded. This resets within 1-2 minutes. Please try again shortly.');
-    }
-
-    if (error instanceof SyntaxError) {
-      throw createError(500, 'Failed to parse recipe data from AI response');
-    }
-
-    throw createError(500, `Recipe extraction failed: ${error.message}`);
+    handleGeminiError(error);
   }
 }
 
@@ -128,55 +119,28 @@ export async function extractRecipeFromPDF(pdfBuffer: Buffer): Promise<Extractio
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: 'application/pdf',
-          data: pdfBuffer.toString('base64'),
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [
+        {
+          parts: [
+            {
+              inlineData: {
+                mimeType: 'application/pdf',
+                data: pdfBuffer.toString('base64'),
+              },
+            },
+            { text: RECIPE_EXTRACTION_PROMPT },
+          ],
         },
-      },
-      RECIPE_EXTRACTION_PROMPT,
-    ]);
+      ],
+    });
 
-    const response = result.response;
-    const text = response.text();
-
-    let cleanedText = text.trim();
-    if (cleanedText.startsWith('```json')) {
-      cleanedText = cleanedText.replace(/^```json\n/, '').replace(/\n```$/, '');
-    } else if (cleanedText.startsWith('```')) {
-      cleanedText = cleanedText.replace(/^```\n/, '').replace(/\n```$/, '');
-    }
-
-    const recipe: RecipeData = JSON.parse(cleanedText);
-
-    if (!recipe.name || !recipe.ingredients || !recipe.instructions) {
-      throw createError(400, 'Extracted recipe is missing required fields');
-    }
-
+    const recipe = cleanAndParseResponse(response.text ?? '');
     const tokensUsed = response.usageMetadata?.totalTokenCount;
-
     return { recipe, tokensUsed };
   } catch (error: any) {
-    if (error.statusCode) {
-      throw error;
-    }
-
-    if (error.message?.includes('API key')) {
-      throw createError(500, 'Invalid Gemini API key');
-    }
-
-    if (error.message?.includes('quota') || error.message?.includes('429')) {
-      throw createError(429, 'Gemini API quota exceeded. Please try again shortly.');
-    }
-
-    if (error instanceof SyntaxError) {
-      throw createError(500, 'Failed to parse recipe data from AI response');
-    }
-
-    throw createError(500, `Recipe extraction failed: ${error.message}`);
+    handleGeminiError(error);
   }
 }
 
@@ -191,12 +155,6 @@ export async function extractRecipeFromVideo(
     throw createError(500, 'Gemini API key not configured');
   }
 
-  // TODO: Implement video processing
-  // 1. Read video file
-  // 2. Convert to Gemini-compatible format
-  // 3. Send to Gemini with video analysis prompt
-  // 4. Parse response
-
   throw createError(501, 'Video import not yet implemented');
 }
 
@@ -208,9 +166,7 @@ export async function testGeminiConnection(): Promise<boolean> {
     if (!config.geminiApiKey) {
       return false;
     }
-
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    await model.generateContent('Test');
+    await ai.models.generateContent({ model: GEMINI_MODEL, contents: 'Test' });
     return true;
   } catch {
     return false;

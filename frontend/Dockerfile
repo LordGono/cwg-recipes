@@ -9,6 +9,9 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci
 
+# Bust cache for source copy (set BUILD_TIMESTAMP at build time to force re-run)
+ARG BUILD_TIMESTAMP=0
+
 # Copy source code
 COPY . .
 

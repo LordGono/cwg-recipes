@@ -12,6 +12,9 @@ import importRoutes from './routes/import.routes';
 
 const app = express();
 
+// Trust nginx proxy (required for express-rate-limit to work correctly behind nginx)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 

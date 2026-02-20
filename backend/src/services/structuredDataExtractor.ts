@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { promises as dnsPromises } from 'dns';
 import { createError } from '../middleware/errorHandler';
 
 interface RecipeData {
@@ -202,6 +203,29 @@ export function cleanHTMLForGemini(html: string, maxChars = 30000): string {
 }
 
 /**
+ * Check if an IP address is in a private/reserved range (SSRF protection)
+ */
+function isPrivateIP(ip: string): boolean {
+  // IPv6 loopback and private ranges
+  if (ip === '::1' || ip.toLowerCase().startsWith('fe80:') || /^f[cd]/i.test(ip)) {
+    return true;
+  }
+
+  // IPv4 private, loopback, link-local, and reserved ranges
+  const privateRanges = [
+    /^127\./,                                           // 127.0.0.0/8  loopback
+    /^10\./,                                            // 10.0.0.0/8   private
+    /^172\.(1[6-9]|2\d|3[01])\./,                      // 172.16.0.0/12 private
+    /^192\.168\./,                                      // 192.168.0.0/16 private
+    /^169\.254\./,                                      // 169.254.0.0/16 link-local
+    /^0\./,                                             // 0.0.0.0/8
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./,        // 100.64.0.0/10 CGNAT
+  ];
+
+  return privateRanges.some((range) => range.test(ip));
+}
+
+/**
  * Detect if a response page is a bot-block / Cloudflare challenge
  */
 function isBotBlock(html: string, status: number): boolean {
@@ -213,7 +237,9 @@ function isBotBlock(html: string, status: number): boolean {
       lower.includes('checking your browser') ||
       lower.includes('enable javascript') ||
       lower.includes('ddos-guard') ||
-      lower.includes('just a moment')) &&
+      lower.includes('just a moment') ||
+      lower.includes('incapsula incident') ||
+      lower.includes('_incapsula_')) &&
     html.length < 20000 // Real recipe pages are large
   );
 }
@@ -227,6 +253,17 @@ export async function fetchHTML(url: string): Promise<string> {
     const parsedUrl = new URL(url);
     if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
       throw createError(400, 'Invalid URL protocol. Only HTTP and HTTPS are supported.');
+    }
+
+    // SSRF protection: resolve hostname and block private/internal IPs
+    try {
+      const { address } = await dnsPromises.lookup(parsedUrl.hostname);
+      if (isPrivateIP(address)) {
+        throw createError(400, 'URL resolves to a private or internal address and cannot be fetched.');
+      }
+    } catch (error: any) {
+      if (error.statusCode) throw error; // Re-throw our own errors
+      throw createError(400, `Could not resolve hostname: ${parsedUrl.hostname}`);
     }
 
     const response = await fetch(url, {
