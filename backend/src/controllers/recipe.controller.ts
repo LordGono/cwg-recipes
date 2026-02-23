@@ -30,6 +30,7 @@ const parseMultipartBody = (req: Request) => {
   if (typeof body.ingredients === 'string') body.ingredients = JSON.parse(body.ingredients);
   if (typeof body.instructions === 'string') body.instructions = JSON.parse(body.instructions);
   if (typeof body.tags === 'string') body.tags = JSON.parse(body.tags);
+  if (typeof body.countries === 'string') body.countries = JSON.parse(body.countries);
   if (typeof body.prepTime === 'string') body.prepTime = body.prepTime ? parseInt(body.prepTime) : undefined;
   if (typeof body.cookTime === 'string') body.cookTime = body.cookTime ? parseInt(body.cookTime) : undefined;
   if (typeof body.totalTime === 'string') body.totalTime = body.totalTime ? parseInt(body.totalTime) : undefined;
@@ -122,11 +123,14 @@ export const recipeValidation = [
     .optional()
     .isArray()
     .withMessage('Tags must be an array'),
-  body('country')
-    .optional({ nullable: true })
+  body('countries')
+    .optional()
+    .isArray()
+    .withMessage('Countries must be an array'),
+  body('countries.*')
     .trim()
     .isLength({ max: 100 })
-    .withMessage('Country must be less than 100 characters'),
+    .withMessage('Each country must be less than 100 characters'),
   body('videoUrl')
     .optional({ nullable: true })
     .trim()
@@ -354,12 +358,14 @@ export const createRecipe = async (
       ingredients,
       instructions,
       tags,
-      country,
+      countries,
       videoUrl,
     } = req.body;
 
     // Handle image upload
     const imageUrl = req.file ? `uploads/${req.file.filename}` : undefined;
+
+    const countriesArray: string[] = Array.isArray(countries) ? countries.map((c: string) => c.trim()).filter(Boolean) : [];
 
     const recipe = await prisma.recipe.create({
       data: {
@@ -372,19 +378,19 @@ export const createRecipe = async (
         ingredients,
         instructions,
         imageUrl,
-        country: country?.trim() || null,
+        countries: countriesArray as object,
         videoUrl: videoUrl || null,
         createdBy: req.user.userId,
       },
       include: recipeInclude,
     });
 
-    // Build effective tag list — auto-inject country as a tag
+    // Build effective tag list — auto-inject each country as a tag
     const effectiveTags: string[] = [...(Array.isArray(tags) ? tags : [])];
-    if (country?.trim()) {
-      const countryTag = country.trim().toLowerCase();
-      if (!effectiveTags.map((t) => t.toLowerCase()).includes(countryTag)) {
-        effectiveTags.push(countryTag);
+    for (const c of countriesArray) {
+      const t = c.toLowerCase();
+      if (t && !effectiveTags.map((x) => x.toLowerCase()).includes(t)) {
+        effectiveTags.push(t);
       }
     }
 
@@ -441,7 +447,7 @@ export const updateRecipe = async (
       ingredients,
       instructions,
       tags,
-      country,
+      countries,
       videoUrl,
     } = req.body;
 
@@ -479,20 +485,24 @@ export const updateRecipe = async (
         ingredients,
         instructions,
         imageUrl,
-        country: country !== undefined ? (country?.trim() || null) : existingRecipe.country,
+        countries: countries !== undefined
+          ? (Array.isArray(countries) ? countries.map((c: string) => c.trim()).filter(Boolean) : []) as object
+          : existingRecipe.countries as object,
         videoUrl: videoUrl !== undefined ? (videoUrl || null) : existingRecipe.videoUrl,
       },
       include: recipeInclude,
     });
 
-    // Build effective tag list — auto-inject country as a tag
+    // Build effective tag list — auto-inject each country as a tag
     if (tags && Array.isArray(tags)) {
+      const resolvedCountries = countries !== undefined
+        ? (Array.isArray(countries) ? countries.map((c: string) => c.trim()).filter(Boolean) : [])
+        : (existingRecipe.countries as string[] || []);
       const effectiveTags: string[] = [...tags];
-      const resolvedCountry = country !== undefined ? country?.trim() : existingRecipe.country;
-      if (resolvedCountry) {
-        const countryTag = resolvedCountry.toLowerCase();
-        if (!effectiveTags.map((t) => t.toLowerCase()).includes(countryTag)) {
-          effectiveTags.push(countryTag);
+      for (const c of resolvedCountries) {
+        const t = c.toLowerCase();
+        if (t && !effectiveTags.map((x) => x.toLowerCase()).includes(t)) {
+          effectiveTags.push(t);
         }
       }
       await syncRecipeTags(recipe.id, effectiveTags);
@@ -740,6 +750,27 @@ export const addTagsToRecipe = async (
       success: true,
       data: { recipe: updatedRecipe },
     }) as any;
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// Get recipe counts per country
+export const getCountryCounts = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const rows = await prisma.$queryRaw<{ country: string; count: bigint }[]>`
+      SELECT country_name AS country, COUNT(*)::bigint AS count
+      FROM recipes, jsonb_array_elements_text(countries) AS country_name
+      WHERE country_name != ''
+      GROUP BY country_name
+      ORDER BY count DESC
+    `;
+    const data = rows.map((r) => ({ country: r.country, count: Number(r.count) }));
+    return res.json({ success: true, data: { countries: data } }) as any;
   } catch (error) {
     return next(error);
   }

@@ -18,12 +18,16 @@
       </div>
 
       <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-        <span
-          v-if="recipe.country && getCountryFlag(recipe.country)"
-          class="mr-1"
-          :title="recipe.country"
-          aria-hidden="true"
-        >{{ getCountryFlag(recipe.country) }}</span>{{ recipe.name }}
+        <template v-if="recipe.countries?.length">
+          <span
+            v-for="c in recipe.countries.slice(0, 3)"
+            :key="c"
+            :title="c"
+            aria-hidden="true"
+            class="mr-0.5"
+          >{{ getCountryFlag(c) }}</span>
+          <span v-if="recipe.countries.length > 3" class="text-xs text-gray-400 mr-1">+{{ recipe.countries.length - 3 }}</span>
+        </template>{{ recipe.name }}
       </h3>
       <p v-if="recipe.description" class="text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
         {{ recipe.description }}

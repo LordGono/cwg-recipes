@@ -1,5 +1,5 @@
 // ISO 3166-1 alpha-2 codes keyed by lowercase country name
-const COUNTRY_CODES: Record<string, string> = {
+export const COUNTRY_CODES: Record<string, string> = {
   'afghanistan': 'AF',
   'argentina': 'AR',
   'australia': 'AU',
@@ -82,13 +82,27 @@ export function getCountryFlag(countryName: string): string {
   const code = COUNTRY_CODES[countryName.toLowerCase().trim()];
   if (!code || code.length !== 2) return '';
   return (
-    String.fromCodePoint(0x1f1e0 + code.charCodeAt(0) - 65) +
-    String.fromCodePoint(0x1f1e0 + code.charCodeAt(1) - 65)
+    String.fromCodePoint(0x1f1e6 + code.charCodeAt(0) - 65) +
+    String.fromCodePoint(0x1f1e6 + code.charCodeAt(1) - 65)
   );
 }
 
-/** Title-cased country names for use in datalist autocomplete */
+/** Title-cased country names for use in autocomplete */
 export const COUNTRY_NAMES: string[] = Object.keys(COUNTRY_CODES)
   .filter((k) => k === k.toLowerCase() && !['uk', 'usa', 'us'].includes(k))
   .map((k) => k.replace(/\b\w/g, (c) => c.toUpperCase()))
   .sort();
+
+/** ISO code → canonical lowercase country name (for WorldMap click → filter) */
+export const CODE_TO_COUNTRY: Record<string, string> = Object.fromEntries(
+  Object.entries(COUNTRY_CODES)
+    .filter(([name]) => !['uk', 'usa', 'us', 'south korea', 'north korea'].includes(name))
+    .map(([name, code]) => [code, name])
+);
+
+/** Convert an ISO-3166-1 alpha-2 code to a title-cased country name, or '' if unknown */
+export function codeToCountryName(code: string): string {
+  const name = CODE_TO_COUNTRY[code.toUpperCase()];
+  if (!name) return '';
+  return name.replace(/\b\w/g, (c) => c.toUpperCase());
+}

@@ -38,7 +38,7 @@ model Recipe {
   isPinned     Boolean  @default(false) @map("is_pinned")
   imageUrl     String?  @map("image_url")
   videoUrl     String?  @map("video_url")
-  country      String?  @map("country")
+  countries    Json?    @map("countries")  // string[] of country names
   macros       Json?    // {calories, protein, carbs, fat, fiber} per serving
   createdBy    String   @map("created_by")
   createdAt    DateTime @default(now()) @map("created_at")

@@ -7,6 +7,7 @@ import type {
   RecipeListResponse,
   RecipeResponse,
   SuggestTagsResponse,
+  CountryCountsResponse,
   TagListResponse,
   MacroData,
   User,
@@ -104,7 +105,7 @@ class ApiService {
       formData.append('ingredients', JSON.stringify(recipe.ingredients));
       formData.append('instructions', JSON.stringify(recipe.instructions));
       if (recipe.tags) formData.append('tags', JSON.stringify(recipe.tags));
-      formData.append('country', recipe.country ?? '');
+      formData.append('countries', JSON.stringify(recipe.countries ?? []));
       if (recipe.videoUrl != null) formData.append('videoUrl', recipe.videoUrl);
 
       const response = await this.api.post<RecipeResponse>('/recipes', formData, {
@@ -130,7 +131,7 @@ class ApiService {
       formData.append('ingredients', JSON.stringify(recipe.ingredients));
       formData.append('instructions', JSON.stringify(recipe.instructions));
       if (recipe.tags) formData.append('tags', JSON.stringify(recipe.tags));
-      formData.append('country', recipe.country ?? '');
+      formData.append('countries', JSON.stringify(recipe.countries ?? []));
       if (recipe.videoUrl != null) formData.append('videoUrl', recipe.videoUrl);
 
       const response = await this.api.put<RecipeResponse>(`/recipes/${id}`, formData, {
@@ -165,6 +166,11 @@ class ApiService {
 
   async addTags(id: string, tags: string[]): Promise<RecipeResponse> {
     const response = await this.api.patch<RecipeResponse>(`/recipes/${id}/tags`, { tags });
+    return response.data;
+  }
+
+  async getCountryCounts(): Promise<CountryCountsResponse> {
+    const response = await this.api.get<CountryCountsResponse>('/recipes/countries');
     return response.data;
   }
 

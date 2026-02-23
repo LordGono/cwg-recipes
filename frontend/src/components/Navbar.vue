@@ -37,6 +37,13 @@
           </button>
 
           <RouterLink
+            to="/explore"
+            class="text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors"
+          >
+            Explore
+          </RouterLink>
+
+          <RouterLink
             v-if="authStore.isAuthenticated"
             to="/my-recipes"
             class="text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors"

@@ -64,10 +64,12 @@
           {{ recipe.description }}
         </p>
 
-        <!-- Country / Region -->
-        <div v-if="recipe.country" class="flex items-center gap-2 mb-3">
-          <span v-if="getCountryFlag(recipe.country)" class="text-xl" aria-hidden="true">{{ getCountryFlag(recipe.country) }}</span>
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ recipe.country }}</span>
+        <!-- Countries -->
+        <div v-if="recipe.countries?.length" class="flex flex-wrap items-center gap-3 mb-3">
+          <span v-for="c in recipe.countries" :key="c" class="flex items-center gap-1">
+            <span v-if="getCountryFlag(c)" class="text-xl" aria-hidden="true">{{ getCountryFlag(c) }}</span>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ c }}</span>
+          </span>
         </div>
 
         <!-- Tags -->

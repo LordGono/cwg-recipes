@@ -59,25 +59,7 @@
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
         Country / Region
       </label>
-      <div class="relative">
-        <span
-          v-if="formData.country && getCountryFlag(formData.country)"
-          class="absolute left-3 top-1/2 -translate-y-1/2 text-lg pointer-events-none select-none"
-          aria-hidden="true"
-        >{{ getCountryFlag(formData.country) }}</span>
-        <input
-          v-model="formData.country"
-          type="text"
-          list="country-list"
-          :class="['input', formData.country && getCountryFlag(formData.country) ? 'pl-10' : '']"
-          placeholder="e.g., Italy"
-          maxlength="100"
-        />
-      </div>
-      <datalist id="country-list">
-        <option v-for="name in COUNTRY_NAMES" :key="name" :value="name" />
-      </datalist>
-      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional — also added as a tag for filtering.</p>
+      <CountrySelect v-model="formData.countries" />
     </div>
 
     <!-- Video URL -->
@@ -288,7 +270,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { Recipe, RecipeInput } from '@/types';
-import { COUNTRY_NAMES, getCountryFlag } from '@/utils/countryFlag';
+import CountrySelect from '@/components/CountrySelect.vue';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -324,7 +306,7 @@ const formData = ref<RecipeInput>({
   ingredients: [{ item: '', amount: '' }],
   instructions: [{ step: 1, text: '' }],
   tags: [],
-  country: '',
+  countries: [],
   videoUrl: '',
 });
 
@@ -340,7 +322,7 @@ if (props.initialData) {
     ingredients: [...props.initialData.ingredients],
     instructions: [...props.initialData.instructions],
     tags: props.initialData.tags?.map((rt: any) => (typeof rt === 'string' ? rt : rt.tag.name)) || [],
-    country: ('country' in props.initialData ? props.initialData.country : undefined) || '',
+    countries: ('countries' in props.initialData ? props.initialData.countries : undefined) || [],
     videoUrl: ('videoUrl' in props.initialData ? props.initialData.videoUrl : undefined) || '',
   };
 
@@ -415,7 +397,7 @@ watch(
         ingredients: [...newData.ingredients],
         instructions: [...newData.instructions],
         tags: newData.tags?.map((rt: any) => (typeof rt === 'string' ? rt : rt.tag.name)) || [],
-        country: ('country' in newData ? newData.country : undefined) || '',
+        countries: ('countries' in newData ? newData.countries : undefined) || [],
         videoUrl: ('videoUrl' in newData ? newData.videoUrl : undefined) || '',
       };
 
