@@ -17,7 +17,14 @@
         </span>
       </div>
 
-      <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">{{ recipe.name }}</h3>
+      <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+        <span
+          v-if="recipe.country && getCountryFlag(recipe.country)"
+          class="mr-1"
+          :title="recipe.country"
+          aria-hidden="true"
+        >{{ getCountryFlag(recipe.country) }}</span>{{ recipe.name }}
+      </h3>
       <p v-if="recipe.description" class="text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
         {{ recipe.description }}
       </p>
@@ -72,6 +79,7 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { getCountryFlag } from '@/utils/countryFlag';
 import type { Recipe } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';

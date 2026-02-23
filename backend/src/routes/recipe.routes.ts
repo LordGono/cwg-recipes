@@ -8,6 +8,8 @@ import {
   deleteRecipe,
   togglePinRecipe,
   calculateRecipeMacros,
+  suggestTagsForRecipe,
+  addTagsToRecipe,
   recipeValidation,
   recipeMultipartValidation,
 } from '../controllers/recipe.controller';
@@ -42,6 +44,8 @@ router.put(
 );
 router.patch('/:id/pin', authenticate, togglePinRecipe);
 router.post('/:id/macros', authenticate, calculateRecipeMacros);
+router.post('/:id/suggest-tags', authenticate, suggestTagsForRecipe);
+router.patch('/:id/tags', authenticate, addTagsToRecipe);
 router.delete('/:id', authenticate, deleteRecipe);
 
 export default router;

@@ -64,6 +64,12 @@
           {{ recipe.description }}
         </p>
 
+        <!-- Country / Region -->
+        <div v-if="recipe.country" class="flex items-center gap-2 mb-3">
+          <span v-if="getCountryFlag(recipe.country)" class="text-xl" aria-hidden="true">{{ getCountryFlag(recipe.country) }}</span>
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ recipe.country }}</span>
+        </div>
+
         <!-- Tags -->
         <div v-if="recipe.tags && recipe.tags.length > 0" class="flex flex-wrap gap-2 mb-4">
           <span
@@ -148,7 +154,19 @@
 
       <!-- Nutrition / Macros -->
       <div class="mt-8">
-        <MacroChart v-if="recipe.macros" :macros="recipe.macros" />
+        <div v-if="recipe.macros">
+          <MacroChart :macros="recipe.macros" />
+          <div v-if="canEdit" class="mt-2 flex items-center justify-end gap-3 print:hidden">
+            <p v-if="macrosError" class="text-sm text-red-600 dark:text-red-400">{{ macrosError }}</p>
+            <button
+              @click="handleCalculateMacros"
+              :disabled="macrosLoading"
+              class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
+              {{ macrosLoading ? 'Recalculating...' : '↺ Recalculate' }}
+            </button>
+          </div>
+        </div>
         <div v-else-if="canEdit" class="card flex items-center justify-between print:hidden">
           <div>
             <p class="font-medium text-gray-900 dark:text-gray-100">Nutrition Estimate</p>
@@ -162,7 +180,56 @@
             {{ macrosLoading ? 'Calculating...' : 'Calculate Nutrition' }}
           </button>
         </div>
-        <p v-if="macrosError" class="mt-2 text-sm text-red-600 dark:text-red-400 print:hidden">{{ macrosError }}</p>
+      </div>
+
+      <!-- Suggested Tags (canEdit only, hidden on print) -->
+      <div v-if="canEdit" class="mt-6 print:hidden">
+        <!-- Idle -->
+        <div
+          v-if="suggestedTags === null && !suggestLoading"
+          class="card flex items-center justify-between"
+        >
+          <div>
+            <p class="font-medium text-gray-900 dark:text-gray-100">Suggested Tags</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Let AI suggest relevant tags based on this recipe's content.</p>
+          </div>
+          <button @click="handleSuggestTags" class="btn-secondary flex-shrink-0 ml-4">
+            Suggest Tags
+          </button>
+        </div>
+        <!-- Loading -->
+        <div v-else-if="suggestLoading" class="card">
+          <p class="text-sm text-gray-500 dark:text-gray-400">Generating suggestions...</p>
+        </div>
+        <!-- Results -->
+        <div v-else-if="suggestedTags !== null" class="card">
+          <div class="flex items-center justify-between mb-3">
+            <p class="font-medium text-gray-900 dark:text-gray-100">Suggested Tags</p>
+            <button
+              @click="handleSuggestTags"
+              class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            >
+              ↺ Refresh
+            </button>
+          </div>
+          <p v-if="suggestError" class="text-sm text-red-600 dark:text-red-400 mb-2">{{ suggestError }}</p>
+          <div v-if="suggestedTags.length > 0" class="flex flex-wrap gap-2">
+            <button
+              v-for="tag in suggestedTags"
+              :key="tag"
+              @click="handleAddSuggestedTag(tag)"
+              class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                     bg-gray-100 text-gray-700 hover:bg-primary-100 hover:text-primary-800
+                     dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-primary-900/30 dark:hover:text-primary-400
+                     transition-colors border border-dashed border-gray-300 dark:border-gray-600"
+            >
+              + {{ tag }}
+            </button>
+          </div>
+          <p v-else class="text-sm text-gray-500 dark:text-gray-400">
+            No new suggestions — all relevant tags are already added.
+          </p>
+        </div>
       </div>
 
       <!-- YouTube embed (hidden on print — show URL as text instead) -->
@@ -196,6 +263,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useRecipeStore } from '@/stores/recipes';
 import api from '@/services/api';
 import MacroChart from '@/components/MacroChart.vue';
+import { getCountryFlag } from '@/utils/countryFlag';
 import type { Recipe } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -210,6 +278,9 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const macrosLoading = ref(false);
 const macrosError = ref<string | null>(null);
+const suggestLoading = ref(false);
+const suggestError = ref<string | null>(null);
+const suggestedTags = ref<string[] | null>(null);
 const scaleServings = ref(1);
 
 // Keep scaleServings in sync when recipe loads
@@ -363,6 +434,35 @@ const handleCalculateMacros = async () => {
     macrosError.value = err.response?.data?.message || 'Failed to calculate nutrition';
   } finally {
     macrosLoading.value = false;
+  }
+};
+
+const handleSuggestTags = async () => {
+  if (!recipe.value) return;
+  suggestLoading.value = true;
+  suggestError.value = null;
+  suggestedTags.value = null;
+  try {
+    const response = await api.suggestTags(recipe.value.id);
+    suggestedTags.value = response.data.suggestions;
+  } catch (err: any) {
+    suggestError.value = err.response?.data?.message || 'Failed to get tag suggestions';
+    suggestedTags.value = [];
+  } finally {
+    suggestLoading.value = false;
+  }
+};
+
+const handleAddSuggestedTag = async (tagName: string) => {
+  if (!recipe.value) return;
+  try {
+    const response = await api.addTags(recipe.value.id, [tagName]);
+    recipe.value = response.data.recipe;
+    if (suggestedTags.value) {
+      suggestedTags.value = suggestedTags.value.filter((t) => t !== tagName);
+    }
+  } catch (err: any) {
+    suggestError.value = err.response?.data?.message || 'Failed to add tag';
   }
 };
 

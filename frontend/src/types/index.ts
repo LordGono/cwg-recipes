@@ -70,6 +70,7 @@ export interface Recipe {
   isPinned?: boolean;
   imageUrl?: string;
   videoUrl?: string;
+  country?: string;
   macros?: MacroData;
   tags?: RecipeTag[];
   createdBy: string;
@@ -91,6 +92,7 @@ export interface RecipeInput {
   ingredients: Ingredient[];
   instructions: Instruction[];
   tags?: string[];
+  country?: string;
   videoUrl?: string;
 }
 
@@ -116,6 +118,13 @@ export interface TagListResponse {
   success: boolean;
   data: {
     tags: (Tag & { _count: { recipes: number } })[];
+  };
+}
+
+export interface SuggestTagsResponse {
+  success: boolean;
+  data: {
+    suggestions: string[];
   };
 }
 

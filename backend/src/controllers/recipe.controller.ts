@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import prisma from '../config/database';
 import { createError } from '../middleware/errorHandler';
-import { calculateMacros } from '../services/gemini';
+import { calculateMacros, suggestTags } from '../services/gemini';
 
 // Helper to include tags in recipe queries
 const recipeInclude = {
@@ -122,6 +122,11 @@ export const recipeValidation = [
     .optional()
     .isArray()
     .withMessage('Tags must be an array'),
+  body('country')
+    .optional({ nullable: true })
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Country must be less than 100 characters'),
   body('videoUrl')
     .optional({ nullable: true })
     .trim()
@@ -349,6 +354,7 @@ export const createRecipe = async (
       ingredients,
       instructions,
       tags,
+      country,
       videoUrl,
     } = req.body;
 
@@ -366,15 +372,25 @@ export const createRecipe = async (
         ingredients,
         instructions,
         imageUrl,
+        country: country?.trim() || null,
         videoUrl: videoUrl || null,
         createdBy: req.user.userId,
       },
       include: recipeInclude,
     });
 
+    // Build effective tag list — auto-inject country as a tag
+    const effectiveTags: string[] = [...(Array.isArray(tags) ? tags : [])];
+    if (country?.trim()) {
+      const countryTag = country.trim().toLowerCase();
+      if (!effectiveTags.map((t) => t.toLowerCase()).includes(countryTag)) {
+        effectiveTags.push(countryTag);
+      }
+    }
+
     // Handle tags
-    if (tags && Array.isArray(tags) && tags.length > 0) {
-      await syncRecipeTags(recipe.id, tags);
+    if (effectiveTags.length > 0) {
+      await syncRecipeTags(recipe.id, effectiveTags);
       // Re-fetch with tags
       const updatedRecipe = await prisma.recipe.findUnique({
         where: { id: recipe.id },
@@ -425,6 +441,7 @@ export const updateRecipe = async (
       ingredients,
       instructions,
       tags,
+      country,
       videoUrl,
     } = req.body;
 
@@ -462,14 +479,23 @@ export const updateRecipe = async (
         ingredients,
         instructions,
         imageUrl,
+        country: country !== undefined ? (country?.trim() || null) : existingRecipe.country,
         videoUrl: videoUrl !== undefined ? (videoUrl || null) : existingRecipe.videoUrl,
       },
       include: recipeInclude,
     });
 
-    // Handle tags
+    // Build effective tag list — auto-inject country as a tag
     if (tags && Array.isArray(tags)) {
-      await syncRecipeTags(recipe.id, tags);
+      const effectiveTags: string[] = [...tags];
+      const resolvedCountry = country !== undefined ? country?.trim() : existingRecipe.country;
+      if (resolvedCountry) {
+        const countryTag = resolvedCountry.toLowerCase();
+        if (!effectiveTags.map((t) => t.toLowerCase()).includes(countryTag)) {
+          effectiveTags.push(countryTag);
+        }
+      }
+      await syncRecipeTags(recipe.id, effectiveTags);
     }
 
     // Re-fetch with updated tags
@@ -609,6 +635,110 @@ export const calculateRecipeMacros = async (
     return res.json({
       success: true,
       data: { macros },
+    }) as any;
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// Suggest tags for a recipe using Gemini AI
+export const suggestTagsForRecipe = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw createError(401, 'Authentication required');
+    }
+
+    const { id } = req.params;
+    const recipeId = Array.isArray(id) ? id[0] : id;
+
+    const recipe = await prisma.recipe.findUnique({
+      where: { id: recipeId },
+      include: recipeInclude,
+    });
+    if (!recipe) {
+      throw createError(404, 'Recipe not found');
+    }
+
+    if (recipe.createdBy !== req.user.userId && !req.user.isAdmin) {
+      throw createError(403, 'You do not have permission to suggest tags for this recipe');
+    }
+
+    const allTags = await prisma.tag.findMany({ orderBy: { name: 'asc' } });
+    const existingTagNames = allTags.map((t) => t.name);
+    const currentTagNames = recipe.tags.map((rt) => rt.tag.name);
+
+    const recipeData = {
+      name: recipe.name,
+      description: recipe.description ?? undefined,
+      ingredients: recipe.ingredients as Array<{ item: string; amount: string }>,
+      instructions: recipe.instructions as Array<{ step: number; text: string }>,
+    };
+
+    const suggestions = await suggestTags(recipeData, existingTagNames, currentTagNames);
+    const filtered = suggestions.filter((s) => !currentTagNames.includes(s));
+
+    return res.json({
+      success: true,
+      data: { suggestions: filtered },
+    }) as any;
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// Add tags to a recipe (additive — does not remove existing tags)
+export const addTagsToRecipe = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw createError(401, 'Authentication required');
+    }
+
+    const { id } = req.params;
+    const recipeId = Array.isArray(id) ? id[0] : id;
+    const { tags: newTags } = req.body;
+
+    if (!Array.isArray(newTags)) {
+      throw createError(400, 'tags must be an array');
+    }
+
+    const recipe = await prisma.recipe.findUnique({
+      where: { id: recipeId },
+      include: recipeInclude,
+    });
+    if (!recipe) {
+      throw createError(404, 'Recipe not found');
+    }
+
+    if (recipe.createdBy !== req.user.userId && !req.user.isAdmin) {
+      throw createError(403, 'You do not have permission to update this recipe');
+    }
+
+    const currentTagNames = recipe.tags.map((rt) => rt.tag.name);
+    const merged = [
+      ...new Set([
+        ...currentTagNames,
+        ...newTags.map((t: string) => t.trim().toLowerCase()).filter(Boolean),
+      ]),
+    ];
+
+    await syncRecipeTags(recipeId, merged);
+
+    const updatedRecipe = await prisma.recipe.findUnique({
+      where: { id: recipeId },
+      include: recipeInclude,
+    });
+
+    return res.json({
+      success: true,
+      data: { recipe: updatedRecipe },
     }) as any;
   } catch (error) {
     return next(error);

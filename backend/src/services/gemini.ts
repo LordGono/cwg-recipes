@@ -244,6 +244,64 @@ export async function calculateMacros(
   }
 }
 
+const TAG_SUGGESTION_PROMPT = `You are a recipe tagging assistant. Given a recipe and a list of existing tags, suggest 3 to 6 relevant tags.
+
+Return ONLY a valid JSON array of lowercase strings (no markdown, no code blocks):
+["tag1", "tag2", "tag3"]
+
+Rules:
+- Prefer tags from the existing tag pool when relevant
+- You may suggest new tags if clearly appropriate and not in the pool
+- Tags must be lowercase, single words or short hyphenated phrases (e.g. "comfort-food")
+- Do NOT suggest tags already on the recipe (listed separately)
+- Consider: cuisine type, meal type, dietary info, cooking method, main ingredient
+`;
+
+/**
+ * Suggest relevant tags for a recipe using Gemini AI
+ */
+export async function suggestTags(
+  recipe: RecipeData,
+  existingTagNames: string[],
+  currentTagNames: string[]
+): Promise<string[]> {
+  if (!config.geminiApiKey) {
+    throw createError(503, 'Gemini API key not configured');
+  }
+
+  const ingredientList = recipe.ingredients
+    .map((ing) => `- ${ing.amount} ${ing.item}`)
+    .join('\n');
+
+  const prompt =
+    `${TAG_SUGGESTION_PROMPT}` +
+    `Recipe name: ${recipe.name}\n` +
+    (recipe.description ? `Description: ${recipe.description}\n` : '') +
+    `Ingredients:\n${ingredientList}\n\n` +
+    `Existing tag pool: ${existingTagNames.length > 0 ? existingTagNames.join(', ') : '(none yet)'}\n` +
+    `Tags already on this recipe (do NOT suggest these): ${currentTagNames.length > 0 ? currentTagNames.join(', ') : '(none)'}`;
+
+  try {
+    const response = await getAI().models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+    });
+
+    let text = (response.text ?? '').trim();
+    if (text.startsWith('```')) {
+      text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+
+    const data = JSON.parse(text);
+    if (!Array.isArray(data)) {
+      throw createError(500, 'Invalid tag suggestions returned by AI');
+    }
+    return data.filter((t): t is string => typeof t === 'string').map((t) => t.toLowerCase().trim());
+  } catch (error: any) {
+    handleGeminiError(error);
+  }
+}
+
 /**
  * Test Gemini API connection
  */
