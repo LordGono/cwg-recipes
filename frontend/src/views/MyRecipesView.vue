@@ -3,6 +3,16 @@
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">My Recipes</h1>
 
+      <!-- Export button -->
+      <button
+        @click="handleExport"
+        :disabled="exporting"
+        class="btn-secondary text-sm"
+        title="Download all my recipes as JSON"
+      >
+        {{ exporting ? 'Exporting...' : 'Export JSON' }}
+      </button>
+
       <!-- Sort options -->
       <div class="flex items-center space-x-2">
         <label class="text-sm text-gray-600 dark:text-gray-400">Sort by:</label>
@@ -80,6 +90,7 @@ import { ref, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useRecipeStore } from '@/stores/recipes';
 import RecipeCard from '@/components/RecipeCard.vue';
+import api from '@/services/api';
 
 const recipeStore = useRecipeStore();
 
@@ -105,6 +116,23 @@ const handleDelete = async (id: string) => {
     await recipeStore.deleteRecipe(id);
   } catch (error) {
     console.error('Failed to delete recipe:', error);
+  }
+};
+
+const exporting = ref(false);
+
+const handleExport = async () => {
+  exporting.value = true;
+  try {
+    const blob = await api.exportRecipes(true); // mine=true
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `my-recipes-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } finally {
+    exporting.value = false;
   }
 };
 

@@ -11,6 +11,7 @@ import {
   suggestTagsForRecipe,
   addTagsToRecipe,
   getCountryCounts,
+  exportRecipes,
   recipeValidation,
   recipeMultipartValidation,
 } from '../controllers/recipe.controller';
@@ -22,6 +23,7 @@ const router = Router();
 // Public routes
 router.get('/', getAllRecipes);
 router.get('/countries', getCountryCounts);
+router.get('/export', exportRecipes);
 
 // Protected routes - must come BEFORE /:id
 router.get('/my-recipes', authenticate, getMyRecipes);

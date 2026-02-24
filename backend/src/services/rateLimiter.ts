@@ -93,7 +93,7 @@ export async function checkGeminiLimits(): Promise<UsageStats> {
  */
 export async function recordGeminiUsage(
   userId: string,
-  requestType: 'url' | 'video' | 'pdf',
+  requestType: 'url' | 'video' | 'pdf' | 'text',
   tokensUsed?: number,
   success: boolean = true
 ): Promise<void> {

@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
 import { createError } from '../middleware/errorHandler';
 import { fetchHTML, extractStructuredData, cleanHTMLForGemini } from '../services/structuredDataExtractor';
-import { extractRecipeFromHTML, extractRecipeFromPDF } from '../services/gemini';
+import { extractRecipeFromHTML, extractRecipeFromPDF, extractRecipeFromText } from '../services/gemini';
 import {
   checkGeminiLimits,
   recordGeminiUsage,
@@ -126,6 +126,106 @@ export const importFromPDF = async (
       await recordGeminiUsage(req.user.userId, 'pdf', undefined, false);
     }
 
+    return next(error);
+  }
+};
+
+/**
+ * Import recipe from pasted plain text
+ * POST /api/import/text
+ */
+export const importFromText = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) throw createError(401, 'Authentication required');
+
+    const { text } = req.body as { text?: string };
+    if (!text || text.trim().length < 20) {
+      throw createError(400, 'Please paste at least some recipe text');
+    }
+    if (text.length > 50000) {
+      throw createError(400, 'Text is too long (max 50,000 characters)');
+    }
+
+    await checkGeminiLimits();
+
+    const { recipe, tokensUsed } = await extractRecipeFromText(text.trim());
+
+    await recordGeminiUsage(req.user.userId, 'text', tokensUsed, true);
+
+    return res.json({
+      success: true,
+      method: 'gemini',
+      message: 'Recipe extracted from pasted text via AI',
+      data: { recipe },
+    }) as any;
+  } catch (error: any) {
+    if (error.statusCode === 429 && req.user) {
+      await recordGeminiUsage(req.user.userId, 'text', undefined, false);
+    }
+    return next(error);
+  }
+};
+
+/**
+ * Import recipe from exported JSON
+ * POST /api/import/json
+ */
+export const importFromJSON = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) throw createError(401, 'Authentication required');
+
+    const body = req.body as Record<string, unknown>;
+
+    // Accept either a single recipe object or an export file wrapping { recipes: [...] }
+    const raw: unknown = Array.isArray(body.recipes)
+      ? (body.recipes as unknown[])[0]   // use first recipe from an export file
+      : body;
+
+    if (!raw || typeof raw !== 'object') {
+      throw createError(400, 'Invalid JSON — expected a recipe object');
+    }
+
+    const r = raw as Record<string, unknown>;
+
+    if (!r['name'] || typeof r['name'] !== 'string') {
+      throw createError(400, 'Recipe JSON must have a "name" field');
+    }
+    if (!Array.isArray(r['ingredients'])) {
+      throw createError(400, 'Recipe JSON must have an "ingredients" array');
+    }
+    if (!Array.isArray(r['instructions'])) {
+      throw createError(400, 'Recipe JSON must have an "instructions" array');
+    }
+
+    const recipe = {
+      name: String(r['name']),
+      description: r['description'] ? String(r['description']) : undefined,
+      prepTime: typeof r['prepTime'] === 'number' ? r['prepTime'] : undefined,
+      cookTime: typeof r['cookTime'] === 'number' ? r['cookTime'] : undefined,
+      totalTime: typeof r['totalTime'] === 'number' ? r['totalTime'] : undefined,
+      servings: typeof r['servings'] === 'number' ? r['servings'] : undefined,
+      ingredients: r['ingredients'] as { item: string; amount: string }[],
+      instructions: r['instructions'] as { step: number; text: string }[],
+      tags: Array.isArray(r['tags']) ? (r['tags'] as string[]) : [],
+      countries: Array.isArray(r['countries']) ? (r['countries'] as string[]) : [],
+      videoUrl: r['videoUrl'] ? String(r['videoUrl']) : undefined,
+    };
+
+    return res.json({
+      success: true,
+      method: 'json',
+      message: 'Recipe parsed from JSON',
+      data: { recipe },
+    }) as any;
+  } catch (error) {
     return next(error);
   }
 };

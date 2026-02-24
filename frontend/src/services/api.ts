@@ -214,6 +214,34 @@ class ApiService {
     return response.data;
   }
 
+  async importFromText(text: string): Promise<{
+    success: boolean;
+    method: 'gemini';
+    message: string;
+    data: { recipe: RecipeInput };
+  }> {
+    const response = await this.api.post('/import/text', { text });
+    return response.data;
+  }
+
+  async importFromJSON(json: unknown): Promise<{
+    success: boolean;
+    method: 'json';
+    message: string;
+    data: { recipe: RecipeInput };
+  }> {
+    const response = await this.api.post('/import/json', json);
+    return response.data;
+  }
+
+  async exportRecipes(mine = false): Promise<Blob> {
+    const response = await this.api.get('/recipes/export', {
+      params: mine ? { mine: 'true' } : {},
+      responseType: 'blob',
+    });
+    return response.data;
+  }
+
   // ── Shopping Lists ──────────────────────────────────────────────────────
 
   async getShoppingLists(): Promise<ShoppingListsResponse> {

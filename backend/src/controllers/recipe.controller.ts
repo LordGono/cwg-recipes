@@ -755,6 +755,51 @@ export const addTagsToRecipe = async (
   }
 };
 
+// Export all recipes as JSON download
+export const exportRecipes = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const where = req.query['mine'] === 'true' && req.user
+      ? { createdBy: req.user.userId as string }
+      : {};
+
+    const recipes = await prisma.recipe.findMany({
+      where,
+      include: {
+        tags: { include: { tag: true } },
+        user: { select: { username: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const exported = recipes.map((r) => ({
+      name: r.name,
+      description: r.description,
+      prepTime: r.prepTime,
+      cookTime: r.cookTime,
+      totalTime: r.totalTime,
+      servings: r.servings,
+      ingredients: r.ingredients,
+      instructions: r.instructions,
+      countries: r.countries,
+      videoUrl: r.videoUrl,
+      tags: r.tags.map((rt) => rt.tag.name),
+      createdBy: r.user.username,
+      createdAt: r.createdAt,
+    }));
+
+    const filename = `cwg-recipes-export-${new Date().toISOString().slice(0, 10)}.json`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.json({ exportedAt: new Date().toISOString(), count: exported.length, recipes: exported });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Get recipe counts per country
 export const getCountryCounts = async (
   _req: Request,

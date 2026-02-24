@@ -155,6 +155,28 @@ export async function extractRecipeFromPDF(pdfBuffer: Buffer): Promise<Extractio
 }
 
 /**
+ * Extract recipe from plain text (copy-pasted from a webpage, book, etc.)
+ */
+export async function extractRecipeFromText(text: string): Promise<ExtractionResult> {
+  if (!config.geminiApiKey) {
+    throw createError(500, 'Gemini API key not configured');
+  }
+
+  try {
+    const response = await getAI().models.generateContent({
+      model: GEMINI_MODEL,
+      contents: `${RECIPE_EXTRACTION_PROMPT}\n\nRecipe text:\n${text}`,
+    });
+
+    const recipe = cleanAndParseResponse(response.text ?? '');
+    const tokensUsed = response.usageMetadata?.totalTokenCount;
+    return { recipe, tokensUsed };
+  } catch (error: any) {
+    handleGeminiError(error);
+  }
+}
+
+/**
  * Extract recipe from video file using Gemini API
  * (Future implementation when video import is added)
  */

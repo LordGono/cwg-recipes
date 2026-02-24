@@ -22,22 +22,14 @@
         <!-- Tab Selector -->
         <div v-if="!loading && !error && !importedRecipe" class="flex mb-4 border-b border-gray-200 dark:border-gray-700">
           <button
-            @click="activeTab = 'url'"
-            :class="activeTab === 'url'
+            v-for="tab in tabs" :key="tab.id"
+            @click="activeTab = tab.id"
+            :class="activeTab === tab.id
               ? 'border-primary-500 text-primary-600 dark:text-primary-400'
               : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
-            class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+            class="px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
           >
-            From URL
-          </button>
-          <button
-            @click="activeTab = 'pdf'"
-            :class="activeTab === 'pdf'
-              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
-            class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
-          >
-            From PDF
+            {{ tab.label }}
           </button>
         </div>
 
@@ -136,6 +128,79 @@
           </button>
         </div>
 
+        <!-- Paste Text Tab Content -->
+        <div v-if="!loading && !error && !importedRecipe && activeTab === 'text'">
+          <p class="text-gray-600 dark:text-gray-300 mb-3">
+            Copy and paste recipe text from any webpage, blog post, or document. Gemini will parse it into the correct format.
+          </p>
+
+          <textarea
+            v-model="pastedText"
+            placeholder="Paste recipe text here..."
+            rows="10"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm resize-y"
+          />
+
+          <div v-if="usageStats" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 my-3">
+            <p class="text-sm text-blue-800 dark:text-blue-200">
+              <strong>AI Imports Today:</strong> {{ usageStats.rpd.used }}/{{ usageStats.rpd.limit }}
+              <span class="text-xs">({{ usageStats.rpd.remaining }} remaining)</span>
+            </p>
+          </div>
+
+          <button
+            @click="importFromText"
+            :disabled="pastedText.trim().length < 20"
+            class="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-2"
+          >
+            Extract Recipe with AI
+          </button>
+        </div>
+
+        <!-- JSON Tab Content -->
+        <div v-if="!loading && !error && !importedRecipe && activeTab === 'json'">
+          <p class="text-gray-600 dark:text-gray-300 mb-3">
+            Import a recipe from a previously exported JSON file, or paste JSON directly.
+          </p>
+
+          <!-- File picker -->
+          <div
+            @dragover.prevent="jsonDragging = true"
+            @dragleave.prevent="jsonDragging = false"
+            @drop.prevent="onJsonDrop"
+            @click="jsonFileInput?.click()"
+            :class="jsonDragging
+              ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+              : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'"
+            class="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors mb-3"
+          >
+            <input ref="jsonFileInput" type="file" accept="application/json,.json" class="hidden" @change="onJsonFileChange" />
+            <p v-if="!jsonFileName" class="text-sm text-gray-500 dark:text-gray-400">
+              Drop <code>.json</code> file here or <span class="text-primary-600 dark:text-primary-400 font-medium">click to browse</span>
+            </p>
+            <p v-else class="text-sm text-gray-800 dark:text-gray-200 font-medium">{{ jsonFileName }}</p>
+          </div>
+
+          <p class="text-xs text-center text-gray-400 mb-2">— or paste JSON below —</p>
+
+          <textarea
+            v-model="jsonText"
+            placeholder='{"name": "My Recipe", "ingredients": [...], ...}'
+            rows="6"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm font-mono resize-y"
+          />
+
+          <p v-if="jsonError" class="text-red-500 text-sm mt-2">{{ jsonError }}</p>
+
+          <button
+            @click="importFromJSON"
+            :disabled="!jsonText.trim()"
+            class="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-3"
+          >
+            Import from JSON
+          </button>
+        </div>
+
         <!-- Loading State -->
         <div v-if="loading" class="text-center py-8">
           <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -208,12 +273,29 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 
+// Tabs
+const tabs = [
+  { id: 'url',  label: 'From URL' },
+  { id: 'pdf',  label: 'From PDF' },
+  { id: 'text', label: 'Paste Text' },
+  { id: 'json', label: 'From JSON' },
+] as const;
+type TabId = typeof tabs[number]['id'];
+
 // State
-const activeTab = ref<'url' | 'pdf'>('url');
+const activeTab = ref<TabId>('url');
 const url = ref('');
 const pdfFile = ref<File | null>(null);
 const dragging = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
+// Text tab
+const pastedText = ref('');
+// JSON tab
+const jsonText = ref('');
+const jsonFileName = ref('');
+const jsonDragging = ref(false);
+const jsonFileInput = ref<HTMLInputElement | null>(null);
+const jsonError = ref('');
 const loading = ref(false);
 const loadingMessage = ref('Fetching recipe...');
 const error = ref('');
@@ -232,6 +314,11 @@ const resetModal = () => {
   url.value = '';
   pdfFile.value = null;
   dragging.value = false;
+  pastedText.value = '';
+  jsonText.value = '';
+  jsonFileName.value = '';
+  jsonDragging.value = false;
+  jsonError.value = '';
   loading.value = false;
   error.value = '';
   isQuotaError.value = false;
@@ -311,6 +398,66 @@ const importFromPDF = async () => {
     const errorMessage = err.response?.data?.message || err.message || 'Failed to extract recipe from PDF';
     isQuotaError.value = status === 429;
     error.value = errorMessage;
+  } finally {
+    loading.value = false;
+  }
+};
+
+const importFromText = async () => {
+  if (pastedText.value.trim().length < 20) return;
+  loading.value = true;
+  error.value = '';
+  isQuotaError.value = false;
+  loadingMessage.value = 'Extracting recipe from text with AI...';
+  try {
+    const response = await api.importFromText(pastedText.value);
+    importedRecipe.value = response.data.recipe;
+    successMessage.value = 'Recipe extracted from pasted text via AI';
+    await fetchUsageStats();
+  } catch (err: any) {
+    isQuotaError.value = err.response?.status === 429;
+    error.value = err.response?.data?.message || err.message || 'Failed to extract recipe';
+  } finally {
+    loading.value = false;
+  }
+};
+
+const onJsonFileChange = (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  jsonFileName.value = file.name;
+  const reader = new FileReader();
+  reader.onload = (ev) => { jsonText.value = String(ev.target?.result ?? ''); };
+  reader.readAsText(file);
+};
+
+const onJsonDrop = (e: DragEvent) => {
+  jsonDragging.value = false;
+  const file = e.dataTransfer?.files[0];
+  if (!file) return;
+  jsonFileName.value = file.name;
+  const reader = new FileReader();
+  reader.onload = (ev) => { jsonText.value = String(ev.target?.result ?? ''); };
+  reader.readAsText(file);
+};
+
+const importFromJSON = async () => {
+  jsonError.value = '';
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText.value);
+  } catch {
+    jsonError.value = 'Invalid JSON — please check the format and try again.';
+    return;
+  }
+  loading.value = true;
+  loadingMessage.value = 'Parsing recipe from JSON...';
+  try {
+    const response = await api.importFromJSON(parsed);
+    importedRecipe.value = response.data.recipe;
+    successMessage.value = 'Recipe parsed from JSON successfully';
+  } catch (err: any) {
+    error.value = err.response?.data?.message || err.message || 'Failed to parse recipe JSON';
   } finally {
     loading.value = false;
   }

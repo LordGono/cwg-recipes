@@ -4,6 +4,8 @@ import {
   importFromURL,
   importFromPDF,
   importFromVideo,
+  importFromText,
+  importFromJSON,
   getUsageStats,
   importValidation,
 } from '../controllers/import.controller';
@@ -27,6 +29,8 @@ const pdfUpload = multer({
 // All import routes require authentication
 router.post('/url', authenticate, importValidation, importFromURL);
 router.post('/pdf', authenticate, pdfUpload.single('pdf'), importFromPDF);
+router.post('/text', authenticate, importFromText);
+router.post('/json', authenticate, importFromJSON);
 router.post('/video', authenticate, importFromVideo); // Future implementation
 router.get('/usage', getUsageStats); // Public - shows global usage stats
 
