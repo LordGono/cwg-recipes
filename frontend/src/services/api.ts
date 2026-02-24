@@ -234,6 +234,33 @@ class ApiService {
     return response.data;
   }
 
+  async importFromVideoFile(file: File): Promise<{
+    success: boolean;
+    method: 'gemini';
+    message: string;
+    data: { recipe: RecipeInput };
+  }> {
+    const formData = new FormData();
+    formData.append('video', file);
+    const response = await this.api.post('/import/video', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 5 * 60 * 1000, // 5 minutes — video processing is slow
+    });
+    return response.data;
+  }
+
+  async importFromVideoURL(url: string): Promise<{
+    success: boolean;
+    method: 'gemini';
+    message: string;
+    data: { recipe: RecipeInput };
+  }> {
+    const response = await this.api.post('/import/video-url', { url }, {
+      timeout: 5 * 60 * 1000, // 5 minutes — download + processing
+    });
+    return response.data;
+  }
+
   async exportRecipes(mine = false): Promise<Blob> {
     const response = await this.api.get('/recipes/export', {
       params: mine ? { mine: 'true' } : {},

@@ -11,7 +11,7 @@
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
         </svg>
-        Import from URL
+        Import Recipe
       </button>
     </div>
 
@@ -29,6 +29,7 @@
     <!-- Import Modal -->
     <ImportRecipeModal
       :is-open="showImportModal"
+      :prefilled-url="prefilledImportUrl"
       @close="showImportModal = false"
       @imported="handleImported"
     />
@@ -36,18 +37,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useRecipeStore } from '@/stores/recipes';
 import RecipeForm from '@/components/RecipeForm.vue';
 import ImportRecipeModal from '@/components/ImportRecipeModal.vue';
 import type { RecipeInput } from '@/types';
 
 const router = useRouter();
+const route = useRoute();
 const recipeStore = useRecipeStore();
 
 const showImportModal = ref(false);
 const importedData = ref<RecipeInput | undefined>(undefined);
+const prefilledImportUrl = ref('');
+
+onMounted(() => {
+  // importUrl is set when the app is opened via PWA Web Share Target
+  // or via a deep link like /recipes/new?importUrl=https://...
+  const importUrl = route.query['importUrl'] as string | undefined;
+  if (importUrl) {
+    prefilledImportUrl.value = importUrl;
+    showImportModal.value = true;
+  }
+});
 
 const handleSubmit = async (data: RecipeInput, image?: File) => {
   try {

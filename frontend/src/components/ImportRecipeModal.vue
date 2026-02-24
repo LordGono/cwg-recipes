@@ -201,6 +201,109 @@
           </button>
         </div>
 
+        <!-- Video Tab Content -->
+        <div v-if="!loading && !error && !importedRecipe && activeTab === 'video'">
+          <p class="text-gray-600 dark:text-gray-300 mb-3">
+            Extract a recipe from a cooking video — upload a file or paste a YouTube / TikTok / Reels link.
+          </p>
+
+          <!-- Mode toggle -->
+          <div class="flex rounded-lg border border-gray-200 dark:border-gray-700 mb-4 overflow-hidden text-sm font-medium">
+            <button
+              @click="videoMode = 'url'"
+              :class="videoMode === 'url'
+                ? 'bg-primary-600 text-white'
+                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'"
+              class="flex-1 py-2 transition-colors"
+            >
+              Paste Link
+            </button>
+            <button
+              @click="videoMode = 'file'"
+              :class="videoMode === 'file'
+                ? 'bg-primary-600 text-white'
+                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'"
+              class="flex-1 py-2 transition-colors"
+            >
+              Upload File
+            </button>
+          </div>
+
+          <!-- URL mode -->
+          <div v-if="videoMode === 'url'">
+            <input
+              v-model="videoUrl"
+              type="url"
+              placeholder="https://www.tiktok.com/@user/video/..."
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white mb-2"
+            />
+            <p class="text-xs text-gray-400 mb-4">
+              Supported: YouTube (Shorts), TikTok, Instagram Reels, Facebook Reels
+            </p>
+          </div>
+
+          <!-- File mode -->
+          <div v-if="videoMode === 'file'">
+            <div
+              @dragover.prevent="videoDragging = true"
+              @dragleave.prevent="videoDragging = false"
+              @drop.prevent="onVideoDrop"
+              @click="videoFileInput?.click()"
+              :class="videoDragging
+                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'"
+              class="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors mb-4"
+            >
+              <input
+                ref="videoFileInput"
+                type="file"
+                accept="video/*"
+                class="hidden"
+                @change="onVideoFileChange"
+              />
+              <svg class="w-10 h-10 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+              </svg>
+              <p v-if="!videoFile" class="text-sm text-gray-500 dark:text-gray-400">
+                Drop video here or <span class="text-primary-600 dark:text-primary-400 font-medium">click to browse</span>
+              </p>
+              <p v-else class="text-sm text-gray-800 dark:text-gray-200 font-medium">
+                {{ videoFile.name }}
+                <span class="text-gray-500 font-normal">({{ (videoFile.size / 1024 / 1024).toFixed(1) }} MB)</span>
+              </p>
+            </div>
+          </div>
+
+          <!-- Usage stats -->
+          <div v-if="usageStats" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
+            <p class="text-sm text-blue-800 dark:text-blue-200">
+              <strong>AI Imports Today:</strong> {{ usageStats.rpd.used }}/{{ usageStats.rpd.limit }}
+              <span class="text-xs">({{ usageStats.rpd.remaining }} remaining)</span>
+            </p>
+            <p class="text-xs text-blue-600 dark:text-blue-300 mt-1">
+              Video processing can take up to 2 minutes.
+            </p>
+          </div>
+
+          <button
+            v-if="videoMode === 'url'"
+            @click="importFromVideoURL"
+            :disabled="!videoUrl.trim()"
+            class="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          >
+            Extract Recipe from Link
+          </button>
+          <button
+            v-else
+            @click="importFromVideoFile"
+            :disabled="!videoFile"
+            class="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          >
+            Extract Recipe from Video
+          </button>
+        </div>
+
         <!-- Loading State -->
         <div v-if="loading" class="text-center py-8">
           <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -254,16 +357,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import api from '@/services/api';
 import type { RecipeInput } from '@/types';
 
 // Props
 interface Props {
   isOpen: boolean;
+  /** Pre-filled URL from the PWA share target or a query param */
+  prefilledUrl?: string;
 }
 
 const props = defineProps<Props>();
+
+// When a prefilled URL arrives (share target), auto-select the right tab + fill the input
+watch(() => props.prefilledUrl, (val) => {
+  if (!val) return;
+  const looksLikeVideo = /tiktok\.com|youtu\.be|youtube\.com\/shorts|instagram\.com\/reel|facebook\.com\/reel|fb\.watch/i.test(val);
+  if (looksLikeVideo) {
+    activeTab.value = 'video';
+    videoUrl.value = val;
+    videoMode.value = 'url';
+  } else {
+    activeTab.value = 'url';
+    url.value = val;
+  }
+}, { immediate: true });
 
 // Emits
 interface Emits {
@@ -275,10 +394,11 @@ const emit = defineEmits<Emits>();
 
 // Tabs
 const tabs = [
-  { id: 'url',  label: 'From URL' },
-  { id: 'pdf',  label: 'From PDF' },
-  { id: 'text', label: 'Paste Text' },
-  { id: 'json', label: 'From JSON' },
+  { id: 'url',   label: 'From URL' },
+  { id: 'pdf',   label: 'From PDF' },
+  { id: 'text',  label: 'Paste Text' },
+  { id: 'json',  label: 'From JSON' },
+  { id: 'video', label: 'Video' },
 ] as const;
 type TabId = typeof tabs[number]['id'];
 
@@ -296,6 +416,12 @@ const jsonFileName = ref('');
 const jsonDragging = ref(false);
 const jsonFileInput = ref<HTMLInputElement | null>(null);
 const jsonError = ref('');
+// Video tab
+const videoMode = ref<'file' | 'url'>('url');
+const videoFile = ref<File | null>(null);
+const videoDragging = ref(false);
+const videoFileInput = ref<HTMLInputElement | null>(null);
+const videoUrl = ref('');
 const loading = ref(false);
 const loadingMessage = ref('Fetching recipe...');
 const error = ref('');
@@ -319,6 +445,9 @@ const resetModal = () => {
   jsonFileName.value = '';
   jsonDragging.value = false;
   jsonError.value = '';
+  videoFile.value = null;
+  videoDragging.value = false;
+  videoUrl.value = '';
   loading.value = false;
   error.value = '';
   isQuotaError.value = false;
@@ -458,6 +587,55 @@ const importFromJSON = async () => {
     successMessage.value = 'Recipe parsed from JSON successfully';
   } catch (err: any) {
     error.value = err.response?.data?.message || err.message || 'Failed to parse recipe JSON';
+  } finally {
+    loading.value = false;
+  }
+};
+
+const onVideoFileChange = (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (file) videoFile.value = file;
+};
+
+const onVideoDrop = (e: DragEvent) => {
+  videoDragging.value = false;
+  const file = e.dataTransfer?.files[0];
+  if (file?.type.startsWith('video/')) videoFile.value = file;
+};
+
+const importFromVideoFile = async () => {
+  if (!videoFile.value) return;
+  loading.value = true;
+  error.value = '';
+  isQuotaError.value = false;
+  loadingMessage.value = 'Uploading video and extracting recipe… this can take a minute.';
+  try {
+    const response = await api.importFromVideoFile(videoFile.value);
+    importedRecipe.value = response.data.recipe;
+    successMessage.value = 'Recipe extracted from video via AI';
+    await fetchUsageStats();
+  } catch (err: any) {
+    isQuotaError.value = err.response?.status === 429;
+    error.value = err.response?.data?.message || err.message || 'Failed to extract recipe from video';
+  } finally {
+    loading.value = false;
+  }
+};
+
+const importFromVideoURL = async () => {
+  if (!videoUrl.value.trim()) return;
+  loading.value = true;
+  error.value = '';
+  isQuotaError.value = false;
+  loadingMessage.value = 'Downloading video and extracting recipe… this can take a minute.';
+  try {
+    const response = await api.importFromVideoURL(videoUrl.value.trim());
+    importedRecipe.value = response.data.recipe;
+    successMessage.value = 'Recipe extracted from video via AI';
+    await fetchUsageStats();
+  } catch (err: any) {
+    isQuotaError.value = err.response?.status === 429;
+    error.value = err.response?.data?.message || err.message || 'Failed to extract recipe from video';
   } finally {
     loading.value = false;
   }
