@@ -300,6 +300,10 @@ class ApiService {
     return response.data;
   }
 
+  async reorderShoppingListItems(listId: string, order: string[]): Promise<void> {
+    await this.api.put(`/shopping-lists/${listId}/items/reorder`, { order });
+  }
+
   async getImportUsageStats(): Promise<{
     success: boolean;
     data: {

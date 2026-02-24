@@ -8,6 +8,7 @@ import {
   addItem,
   addFromRecipe,
   updateItem,
+  reorderItems,
   deleteItem,
   clearCheckedItems,
   listValidation,
@@ -29,8 +30,9 @@ router.delete('/:id', deleteList);
 
 router.post('/:id/items', itemValidation, addItem);
 router.post('/:id/recipes/:recipeId', addFromRecipe);
+router.put('/:id/items/reorder', reorderItems);       // drag-to-reorder
 router.patch('/:id/items/:itemId', updateItem);
-router.delete('/:id/items', clearCheckedItems);      // clear checked (query param implied)
+router.delete('/:id/items', clearCheckedItems);        // clear checked
 router.delete('/:id/items/:itemId', deleteItem);
 
 export default router;

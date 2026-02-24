@@ -96,6 +96,7 @@ model ShoppingListItem {
   name      String
   amount    String?
   checked   Boolean      @default(false)
+  position  Int          @default(0)
   recipeId  String?      @map("recipe_id")
   createdAt DateTime     @default(now()) @map("created_at")
 

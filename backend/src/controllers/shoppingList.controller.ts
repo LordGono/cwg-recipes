@@ -29,6 +29,15 @@ async function ownerOrThrow(listId: string, userId: string) {
   return list;
 }
 
+/** Get the next position value for a list (max existing + 1) */
+async function nextPosition(listId: string): Promise<number> {
+  const result = await prisma.shoppingListItem.aggregate({
+    where: { listId },
+    _max: { position: true },
+  });
+  return (result._max.position ?? -1) + 1;
+}
+
 // ── Controllers ───────────────────────────────────────────────────────────────
 
 /** GET /api/shopping-lists */
@@ -86,7 +95,7 @@ export const getList = async (req: Request, res: Response, next: NextFunction) =
     const userId = uid(req);
     const list = await prisma.shoppingList.findUnique({
       where: { id },
-      include: { items: { orderBy: [{ checked: 'asc' }, { createdAt: 'asc' }] } },
+      include: { items: { orderBy: [{ checked: 'asc' }, { position: 'asc' }] } },
     });
 
     if (!list) throw createError(404, 'Shopping list not found');
@@ -110,7 +119,7 @@ export const updateList = async (req: Request, res: Response, next: NextFunction
     const list = await prisma.shoppingList.update({
       where: { id },
       data: { name: (req.body as { name: string }).name },
-      include: { items: { orderBy: [{ checked: 'asc' }, { createdAt: 'asc' }] } },
+      include: { items: { orderBy: [{ checked: 'asc' }, { position: 'asc' }] } },
     });
 
     res.json({ success: true, data: { list } });
@@ -142,8 +151,9 @@ export const addItem = async (req: Request, res: Response, next: NextFunction) =
     await ownerOrThrow(listId, uid(req));
 
     const { name, amount } = req.body as { name: string; amount?: string };
+    const position = await nextPosition(listId);
     const item = await prisma.shoppingListItem.create({
-      data: { listId, name, amount: amount || null },
+      data: { listId, name, amount: amount || null, position },
     });
 
     await prisma.shoppingList.update({ where: { id: listId }, data: { updatedAt: new Date() } });
@@ -169,11 +179,13 @@ export const addFromRecipe = async (req: Request, res: Response, next: NextFunct
       throw createError(400, 'Recipe has no ingredients');
     }
 
+    const startPos = await nextPosition(listId);
     await prisma.shoppingListItem.createMany({
-      data: ingredients.map((ing) => ({
+      data: ingredients.map((ing, idx) => ({
         listId,
         name: ing.item,
         amount: ing.amount || null,
+        position: startPos + idx,
         recipeId,
       })),
     });
@@ -182,7 +194,7 @@ export const addFromRecipe = async (req: Request, res: Response, next: NextFunct
 
     const list = await prisma.shoppingList.findUnique({
       where: { id: listId },
-      include: { items: { orderBy: [{ checked: 'asc' }, { createdAt: 'asc' }] } },
+      include: { items: { orderBy: [{ checked: 'asc' }, { position: 'asc' }] } },
     });
 
     res.json({ success: true, data: { list, added: ingredients.length } });
@@ -217,6 +229,33 @@ export const updateItem = async (req: Request, res: Response, next: NextFunction
     });
 
     res.json({ success: true, data: { item: updated } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** PUT /api/shopping-lists/:id/items/reorder — persist drag-and-drop order */
+export const reorderItems = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const listId = param(req, 'id');
+    await ownerOrThrow(listId, uid(req));
+
+    const { order } = req.body as { order?: unknown };
+    if (!Array.isArray(order) || order.some((x) => typeof x !== 'string')) {
+      throw createError(400, 'order must be an array of item IDs');
+    }
+
+    // Update each item's position in a transaction
+    await prisma.$transaction(
+      (order as string[]).map((itemId, idx) =>
+        prisma.shoppingListItem.updateMany({
+          where: { id: itemId, listId },
+          data: { position: idx },
+        })
+      )
+    );
+
+    res.json({ success: true, data: { message: 'Order updated' } });
   } catch (err) {
     next(err);
   }

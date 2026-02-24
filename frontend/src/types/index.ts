@@ -146,6 +146,7 @@ export interface ShoppingListItem {
   name: string;
   amount?: string | null;
   checked: boolean;
+  position: number;
   recipeId?: string | null;
   createdAt: string;
 }
