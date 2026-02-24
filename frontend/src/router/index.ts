@@ -31,6 +31,18 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/shopping-lists',
+    name: 'shopping-lists',
+    component: () => import('@/views/ShoppingListsView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/shopping-lists/:id',
+    name: 'shopping-list-detail',
+    component: () => import('@/views/ShoppingListDetailView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/recipes/:id',
     name: 'recipe-detail',
     component: RecipeDetailView,

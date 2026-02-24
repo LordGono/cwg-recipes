@@ -8,6 +8,9 @@ import type {
   RecipeResponse,
   SuggestTagsResponse,
   CountryCountsResponse,
+  ShoppingListsResponse,
+  ShoppingListResponse,
+  ShoppingListItemResponse,
   TagListResponse,
   MacroData,
   User,
@@ -208,6 +211,64 @@ class ApiService {
     const response = await this.api.post('/import/pdf', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    return response.data;
+  }
+
+  // ── Shopping Lists ──────────────────────────────────────────────────────
+
+  async getShoppingLists(): Promise<ShoppingListsResponse> {
+    const response = await this.api.get('/shopping-lists');
+    return response.data;
+  }
+
+  async createShoppingList(name: string): Promise<ShoppingListResponse> {
+    const response = await this.api.post('/shopping-lists', { name });
+    return response.data;
+  }
+
+  async getShoppingList(id: string): Promise<ShoppingListResponse> {
+    const response = await this.api.get(`/shopping-lists/${id}`);
+    return response.data;
+  }
+
+  async renameShoppingList(id: string, name: string): Promise<ShoppingListResponse> {
+    const response = await this.api.patch(`/shopping-lists/${id}`, { name });
+    return response.data;
+  }
+
+  async deleteShoppingList(id: string): Promise<void> {
+    await this.api.delete(`/shopping-lists/${id}`);
+  }
+
+  async addShoppingListItem(
+    listId: string,
+    name: string,
+    amount?: string
+  ): Promise<ShoppingListItemResponse> {
+    const response = await this.api.post(`/shopping-lists/${listId}/items`, { name, amount });
+    return response.data;
+  }
+
+  async addRecipeToShoppingList(listId: string, recipeId: string): Promise<ShoppingListResponse> {
+    const response = await this.api.post(`/shopping-lists/${listId}/recipes/${recipeId}`);
+    return response.data;
+  }
+
+  async updateShoppingListItem(
+    listId: string,
+    itemId: string,
+    patch: { checked?: boolean; name?: string; amount?: string }
+  ): Promise<ShoppingListItemResponse> {
+    const response = await this.api.patch(`/shopping-lists/${listId}/items/${itemId}`, patch);
+    return response.data;
+  }
+
+  async deleteShoppingListItem(listId: string, itemId: string): Promise<void> {
+    await this.api.delete(`/shopping-lists/${listId}/items/${itemId}`);
+  }
+
+  async clearCheckedItems(listId: string): Promise<{ success: boolean; data: { removed: number } }> {
+    const response = await this.api.delete(`/shopping-lists/${listId}/items`);
     return response.data;
   }
 

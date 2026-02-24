@@ -53,6 +53,14 @@
 
           <RouterLink
             v-if="authStore.isAuthenticated"
+            to="/shopping-lists"
+            class="text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors"
+          >
+            Lists
+          </RouterLink>
+
+          <RouterLink
+            v-if="authStore.isAuthenticated"
             to="/recipes/new"
             class="btn-primary"
           >

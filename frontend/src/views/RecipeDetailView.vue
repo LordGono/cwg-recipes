@@ -43,6 +43,55 @@
             >
               Print
             </button>
+
+            <!-- Add to Shopping List -->
+            <div v-if="authStore.isAuthenticated" class="relative print:hidden" ref="listPickerRef">
+              <button
+                @click="toggleListPicker"
+                class="btn-secondary"
+                title="Add ingredients to a shopping list"
+              >
+                + List
+              </button>
+              <!-- Picker dropdown -->
+              <div
+                v-if="listPickerOpen"
+                class="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-30 p-3"
+              >
+                <p class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Add to list</p>
+                <p v-if="listPickerError" class="text-red-500 text-xs mb-2">{{ listPickerError }}</p>
+
+                <!-- Existing lists -->
+                <ul v-if="shoppingLists.length > 0" class="mb-2 space-y-1 max-h-40 overflow-y-auto">
+                  <li v-for="sl in shoppingLists" :key="sl.id">
+                    <button
+                      @click="addToList(sl.id)"
+                      :disabled="listPickerLoading"
+                      class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-700
+                             text-gray-800 dark:text-gray-200 truncate disabled:opacity-50"
+                    >
+                      {{ sl.name }}
+                    </button>
+                  </li>
+                </ul>
+                <p v-else-if="!listPickerLoading" class="text-xs text-gray-400 mb-2">No lists yet.</p>
+
+                <!-- Create new -->
+                <form @submit.prevent="createAndAdd" class="flex gap-1 mt-1">
+                  <input
+                    v-model="newListNameInline"
+                    type="text"
+                    placeholder="New list..."
+                    class="input text-sm flex-1 py-1"
+                    maxlength="100"
+                  />
+                  <button type="submit" :disabled="!newListNameInline.trim() || listPickerLoading" class="btn-primary text-xs px-2 py-1 disabled:opacity-50">
+                    Create
+                  </button>
+                </form>
+              </div>
+            </div>
+
             <template v-if="canEdit">
               <button @click="handleTogglePin" class="btn-secondary print:hidden">
                 {{ recipe.isPinned ? 'Unpin' : 'Pin' }}
@@ -259,14 +308,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter, RouterLink } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useRecipeStore } from '@/stores/recipes';
 import api from '@/services/api';
 import MacroChart from '@/components/MacroChart.vue';
 import { getCountryCode } from '@/utils/countryFlag';
-import type { Recipe } from '@/types';
+import type { Recipe, ShoppingListSummary } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -284,6 +333,70 @@ const suggestLoading = ref(false);
 const suggestError = ref<string | null>(null);
 const suggestedTags = ref<string[] | null>(null);
 const scaleServings = ref(1);
+
+// ── Shopping list picker ────────────────────────────────────────────────────
+const listPickerOpen = ref(false);
+const listPickerLoading = ref(false);
+const listPickerError = ref('');
+const shoppingLists = ref<ShoppingListSummary[]>([]);
+const newListNameInline = ref('');
+const listPickerRef = ref<HTMLElement | null>(null);
+
+async function toggleListPicker() {
+  listPickerOpen.value = !listPickerOpen.value;
+  if (listPickerOpen.value) {
+    listPickerError.value = '';
+    newListNameInline.value = '';
+    listPickerLoading.value = true;
+    try {
+      const res = await api.getShoppingLists();
+      shoppingLists.value = res.data.lists;
+    } finally {
+      listPickerLoading.value = false;
+    }
+  }
+}
+
+async function addToList(listId: string) {
+  if (!recipe.value) return;
+  listPickerLoading.value = true;
+  listPickerError.value = '';
+  try {
+    await api.addRecipeToShoppingList(listId, recipe.value.id);
+    listPickerOpen.value = false;
+    router.push(`/shopping-lists/${listId}`);
+  } catch {
+    listPickerError.value = 'Failed to add ingredients.';
+  } finally {
+    listPickerLoading.value = false;
+  }
+}
+
+async function createAndAdd() {
+  const name = newListNameInline.value.trim();
+  if (!name || !recipe.value) return;
+  listPickerLoading.value = true;
+  listPickerError.value = '';
+  try {
+    const created = await api.createShoppingList(name);
+    await api.addRecipeToShoppingList(created.data.list.id, recipe.value.id);
+    listPickerOpen.value = false;
+    router.push(`/shopping-lists/${created.data.list.id}`);
+  } catch {
+    listPickerError.value = 'Failed to create list.';
+  } finally {
+    listPickerLoading.value = false;
+  }
+}
+
+// Close picker on outside click
+function onDocClick(e: MouseEvent) {
+  if (listPickerRef.value && !listPickerRef.value.contains(e.target as Node)) {
+    listPickerOpen.value = false;
+  }
+}
+onMounted(() => document.addEventListener('click', onDocClick, true));
+onUnmounted(() => document.removeEventListener('click', onDocClick, true));
 
 // Keep scaleServings in sync when recipe loads
 watch(() => recipe.value?.servings, (s) => {

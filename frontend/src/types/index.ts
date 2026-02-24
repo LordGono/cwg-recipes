@@ -138,6 +138,51 @@ export interface SuggestTagsResponse {
   };
 }
 
+// ── Shopping Lists ──────────────────────────────────────────────────────────
+
+export interface ShoppingListItem {
+  id: string;
+  listId: string;
+  name: string;
+  amount?: string | null;
+  checked: boolean;
+  recipeId?: string | null;
+  createdAt: string;
+}
+
+export interface ShoppingListSummary {
+  id: string;
+  name: string;
+  totalItems: number;
+  uncheckedItems: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShoppingList {
+  id: string;
+  name: string;
+  userId: string;
+  items: ShoppingListItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShoppingListsResponse {
+  success: boolean;
+  data: { lists: ShoppingListSummary[] };
+}
+
+export interface ShoppingListResponse {
+  success: boolean;
+  data: { list: ShoppingList };
+}
+
+export interface ShoppingListItemResponse {
+  success: boolean;
+  data: { item: ShoppingListItem };
+}
+
 export interface ApiError {
   success: false;
   message: string;
