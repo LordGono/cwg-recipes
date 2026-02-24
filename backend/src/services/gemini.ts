@@ -176,18 +176,131 @@ export async function extractRecipeFromText(text: string): Promise<ExtractionRes
   }
 }
 
-/**
- * Extract recipe from video file using Gemini API
- * (Future implementation when video import is added)
- */
-export async function extractRecipeFromVideo(
-  _videoPath: string
-): Promise<ExtractionResult> {
-  if (!config.geminiApiKey) {
-    throw createError(500, 'Gemini API key not configured');
-  }
+// Maximum time to wait for Gemini to finish processing a video
+const VIDEO_PROCESSING_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
 
-  throw createError(501, 'Video import not yet implemented');
+/**
+ * Upload a video Blob to the Gemini Files API, wait for ACTIVE state,
+ * extract the recipe, then delete the remote file.
+ */
+async function extractRecipeFromVideoBlob(
+  blob: Blob,
+  mimeType: string
+): Promise<ExtractionResult> {
+  const ai = getAI();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let uploadedFile = await (ai.files as any).upload(blob, { mimeType, displayName: 'recipe-video' });
+
+  const deadline = Date.now() + VIDEO_PROCESSING_TIMEOUT_MS;
+  try {
+    while (uploadedFile.state === 'PROCESSING') {
+      if (Date.now() > deadline) {
+        throw createError(504, 'Video processing timed out. Try a shorter clip (under 5 minutes).');
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      uploadedFile = await (ai.files as any).get({ name: uploadedFile.name });
+    }
+
+    if (uploadedFile.state === 'FAILED') {
+      throw createError(500, 'Gemini could not process the video. Try a different format or a shorter clip.');
+    }
+
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [
+        {
+          parts: [
+            { fileData: { fileUri: uploadedFile.uri, mimeType: uploadedFile.mimeType } },
+            { text: RECIPE_EXTRACTION_PROMPT },
+          ],
+        },
+      ],
+    });
+
+    const recipe = cleanAndParseResponse(response.text ?? '');
+    const tokensUsed = response.usageMetadata?.totalTokenCount;
+    return { recipe, tokensUsed };
+  } finally {
+    // Best-effort cleanup — don't fail the request if the delete call fails
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (ai.files as any).delete({ name: uploadedFile.name }).catch(() => {});
+  }
+}
+
+/**
+ * Extract recipe from an uploaded video file (Buffer from multer).
+ */
+export async function extractRecipeFromVideoFile(
+  buffer: Buffer,
+  mimeType: string
+): Promise<ExtractionResult> {
+  if (!config.geminiApiKey) throw createError(500, 'Gemini API key not configured');
+  try {
+    const blob = new Blob([buffer], { type: mimeType });
+    return await extractRecipeFromVideoBlob(blob, mimeType);
+  } catch (error: any) {
+    handleGeminiError(error);
+  }
+}
+
+/**
+ * Download a video from a social-media URL using yt-dlp, then extract the recipe.
+ * Supported platforms: YouTube (Shorts), TikTok, Instagram Reels, Facebook Reels.
+ */
+export async function extractRecipeFromVideoUrl(
+  videoUrl: string
+): Promise<ExtractionResult> {
+  if (!config.geminiApiKey) throw createError(500, 'Gemini API key not configured');
+
+  const { execFile } = await import('child_process');
+  const { promisify } = await import('util');
+  const { mkdtemp, readdir, readFile, rm } = await import('fs/promises');
+  const { tmpdir } = await import('os');
+  const { join } = await import('path');
+  const execFileAsync = promisify(execFile);
+
+  const tmpDir = await mkdtemp(join(tmpdir(), 'recipe-video-'));
+  try {
+    const outputTemplate = join(tmpDir, '%(id)s.%(ext)s');
+
+    await execFileAsync('yt-dlp', [
+      '--format', 'best[ext=mp4][height<=480]/best[ext=mp4]/best[height<=480]/best',
+      '--max-filesize', '200M',
+      '--output', outputTemplate,
+      '--no-playlist',
+      '--match-filter', 'duration < 600',  // max 10 min
+      '--restrict-filenames',
+      videoUrl,
+    ], { timeout: 120_000 });
+
+    const files = await readdir(tmpDir);
+    if (files.length === 0) throw createError(500, 'Video download produced no output file');
+
+    const videoPath = join(tmpDir, files[0]);
+    const ext = (files[0].split('.').pop() ?? 'mp4').toLowerCase();
+    const mime = ext === 'webm' ? 'video/webm' : ext === 'mov' ? 'video/quicktime' : 'video/mp4';
+
+    const buffer = await readFile(videoPath);
+    const blob = new Blob([buffer], { type: mime });
+    return await extractRecipeFromVideoBlob(blob, mime);
+  } catch (error: any) {
+    if (error.statusCode) throw error;
+    const msg: string = error.message || '';
+    if (msg.includes('ENOENT') || msg.includes('yt-dlp')) {
+      throw createError(503, 'Video download service unavailable. Contact the administrator.');
+    }
+    if (msg.includes('match-filter') || msg.includes('duration')) {
+      throw createError(400, 'Video is too long (max 10 minutes). Try a shorter clip.');
+    }
+    if (msg.includes('filesize') || msg.includes('max-filesize')) {
+      throw createError(400, 'Video file is too large (max 200 MB).');
+    }
+    handleGeminiError(error);
+  } finally {
+    rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 export interface MacroData {

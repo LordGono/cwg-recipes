@@ -2,7 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
 import { createError } from '../middleware/errorHandler';
 import { fetchHTML, extractStructuredData, cleanHTMLForGemini } from '../services/structuredDataExtractor';
-import { extractRecipeFromHTML, extractRecipeFromPDF, extractRecipeFromText } from '../services/gemini';
+import {
+  extractRecipeFromHTML,
+  extractRecipeFromPDF,
+  extractRecipeFromText,
+  extractRecipeFromVideoFile,
+  extractRecipeFromVideoUrl,
+} from '../services/gemini';
 import {
   checkGeminiLimits,
   recordGeminiUsage,
@@ -230,31 +236,103 @@ export const importFromJSON = async (
   }
 };
 
+const SUPPORTED_VIDEO_TYPES = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/x-matroska',
+  'video/mpeg',
+]);
+
+const ALLOWED_VIDEO_DOMAINS = [
+  'youtube.com', 'youtu.be', 'music.youtube.com',
+  'tiktok.com', 'vm.tiktok.com',
+  'instagram.com',
+  'facebook.com', 'fb.watch', 'fb.com',
+];
+
+function validateVideoUrl(url: string): void {
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { throw createError(400, 'Invalid URL'); }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw createError(400, 'Only HTTP/HTTPS URLs are supported');
+  }
+  const hostname = parsed.hostname.replace(/^www\./, '');
+  const allowed = ALLOWED_VIDEO_DOMAINS.some(
+    (d) => hostname === d || hostname.endsWith('.' + d)
+  );
+  if (!allowed) {
+    throw createError(400, 'Supported platforms: YouTube, TikTok, Instagram, Facebook');
+  }
+}
+
 /**
- * Import recipe from video file
+ * Import recipe from uploaded video file
  * POST /api/import/video
- * (Future implementation)
  */
 export const importFromVideo = async (
   req: Request,
-  _res: Response,
+  res: Response,
   next: NextFunction
 ) => {
   try {
-    if (!req.user) {
-      throw createError(401, 'Authentication required');
+    if (!req.user) throw createError(401, 'Authentication required');
+    if (!req.file) throw createError(400, 'Video file is required');
+
+    const { mimetype, buffer } = req.file;
+    if (!SUPPORTED_VIDEO_TYPES.has(mimetype)) {
+      throw createError(400, `Unsupported video format. Supported: MP4, WebM, MOV, AVI, MKV`);
     }
 
-    // TODO: Implement video import
-    // 1. Validate video file
-    // 2. Check duration (max 5 minutes)
-    // 3. Check rate limits
-    // 4. Process with Gemini
-    // 5. Record usage
-    // 6. Return extracted recipe
+    await checkGeminiLimits();
+    const { recipe, tokensUsed } = await extractRecipeFromVideoFile(buffer, mimetype);
+    await recordGeminiUsage(req.user.userId, 'video', tokensUsed, true);
 
-    throw createError(501, 'Video import not yet implemented. Check back in a future update!');
-  } catch (error) {
+    return res.json({
+      success: true,
+      method: 'gemini',
+      message: 'Recipe extracted from video via AI',
+      data: { recipe },
+    }) as any;
+  } catch (error: any) {
+    if (error.statusCode === 429 && req.user) {
+      await recordGeminiUsage(req.user.userId, 'video', undefined, false);
+    }
+    return next(error);
+  }
+};
+
+/**
+ * Import recipe from a social-media video URL (YouTube, TikTok, Reels)
+ * POST /api/import/video-url
+ */
+export const importFromVideoURL = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) throw createError(401, 'Authentication required');
+
+    const { url } = req.body as { url?: string };
+    if (!url || !url.trim()) throw createError(400, 'Video URL is required');
+    validateVideoUrl(url.trim());
+
+    await checkGeminiLimits();
+    const { recipe, tokensUsed } = await extractRecipeFromVideoUrl(url.trim());
+    await recordGeminiUsage(req.user.userId, 'video', tokensUsed, true);
+
+    return res.json({
+      success: true,
+      method: 'gemini',
+      message: 'Recipe extracted from video URL via AI',
+      data: { recipe },
+    }) as any;
+  } catch (error: any) {
+    if (error.statusCode === 429 && req.user) {
+      await recordGeminiUsage(req.user.userId, 'video', undefined, false);
+    }
     return next(error);
   }
 };

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#16a34a"/>
+  <!-- Bowl / plate -->
+  <ellipse cx="256" cy="310" rx="140" ry="30" fill="#bbf7d0"/>
+  <path d="M116 290 Q120 370 256 370 Q392 370 396 290 Z" fill="#dcfce7"/>
+  <!-- Steam wisps -->
+  <path d="M200 230 Q195 215 200 200 Q205 185 200 170" stroke="#ffffff" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.8"/>
+  <path d="M256 220 Q251 205 256 190 Q261 175 256 160" stroke="#ffffff" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.8"/>
+  <path d="M312 230 Q307 215 312 200 Q317 185 312 170" stroke="#ffffff" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.8"/>
+  <!-- Spoon -->
+  <path d="M330 250 L380 180" stroke="#ffffff" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <ellipse cx="386" cy="172" rx="14" ry="20" fill="#ffffff" transform="rotate(-35,386,172)"/>
+</svg>
