@@ -78,6 +78,13 @@ export const COUNTRY_CODES: Record<string, string> = {
  * Returns a flag emoji for a given country name, or '' if not found.
  * Accepts full country names (case-insensitive).
  */
+/** Returns the lowercase ISO 3166-1 alpha-2 code for a country name, or '' if unknown. */
+export function getCountryCode(countryName: string): string {
+  const code = COUNTRY_CODES[countryName.toLowerCase().trim()];
+  return code ? code.toLowerCase() : '';
+}
+
+/** @deprecated Use getCountryCode + <span class="fi fi-{code}"> instead */
 export function getCountryFlag(countryName: string): string {
   const code = COUNTRY_CODES[countryName.toLowerCase().trim()];
   if (!code || code.length !== 2) return '';

@@ -67,7 +67,7 @@
         <!-- Countries -->
         <div v-if="recipe.countries?.length" class="flex flex-wrap items-center gap-3 mb-3">
           <span v-for="c in recipe.countries" :key="c" class="flex items-center gap-1">
-            <span v-if="getCountryFlag(c)" class="text-xl" aria-hidden="true">{{ getCountryFlag(c) }}</span>
+            <span v-if="getCountryCode(c)" class="fi fi-lg" :class="`fi-${getCountryCode(c)}`"></span>
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ c }}</span>
           </span>
         </div>
@@ -265,7 +265,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useRecipeStore } from '@/stores/recipes';
 import api from '@/services/api';
 import MacroChart from '@/components/MacroChart.vue';
-import { getCountryFlag } from '@/utils/countryFlag';
+import { getCountryCode } from '@/utils/countryFlag';
 import type { Recipe } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';

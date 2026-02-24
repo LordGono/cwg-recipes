@@ -8,7 +8,7 @@
         class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium
                bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400"
       >
-        <span v-if="getCountryFlag(c)" aria-hidden="true">{{ getCountryFlag(c) }}</span>
+        <span v-if="getCountryCode(c)" class="fi" :class="`fi-${getCountryCode(c)}`"></span>
         {{ c }}
         <button
           type="button"
@@ -44,7 +44,7 @@
                  text-gray-900 dark:text-gray-100
                  hover:bg-primary-50 dark:hover:bg-primary-900/20"
         >
-          <span v-if="getCountryFlag(name)" aria-hidden="true">{{ getCountryFlag(name) }}</span>
+          <span v-if="getCountryCode(name)" class="fi" :class="`fi-${getCountryCode(name)}`"></span>
           {{ name }}
           <span v-if="modelValue.map(v => v.toLowerCase()).includes(name.toLowerCase())"
                 class="ml-auto text-primary-500 text-xs">✓</span>
@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { COUNTRY_NAMES, getCountryFlag } from '@/utils/countryFlag';
+import { COUNTRY_NAMES, getCountryCode } from '@/utils/countryFlag';
 
 const MAX = 5;
 

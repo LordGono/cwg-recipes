@@ -23,9 +23,11 @@
             v-for="c in recipe.countries.slice(0, 3)"
             :key="c"
             :title="c"
-            aria-hidden="true"
-            class="mr-0.5"
-          >{{ getCountryFlag(c) }}</span>
+            class="inline-block mr-1 align-middle"
+          >
+            <span v-if="getCountryCode(c)" class="fi" :class="`fi-${getCountryCode(c)}`" style="font-size:1rem;"></span>
+            <span v-else class="text-xs text-gray-500">{{ c.substring(0, 2).toUpperCase() }}</span>
+          </span>
           <span v-if="recipe.countries.length > 3" class="text-xs text-gray-400 mr-1">+{{ recipe.countries.length - 3 }}</span>
         </template>{{ recipe.name }}
       </h3>
@@ -83,7 +85,7 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import { getCountryFlag } from '@/utils/countryFlag';
+import { getCountryCode } from '@/utils/countryFlag';
 import type { Recipe } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
