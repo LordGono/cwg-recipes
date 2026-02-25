@@ -11,6 +11,7 @@ import {
 } from '../services/gemini';
 import {
   checkGeminiLimits,
+  checkUserDailyLimit,
   recordGeminiUsage,
   getGeminiUsageStats,
 } from '../services/rateLimiter';
@@ -63,6 +64,7 @@ export const importFromURL = async (
 
     // Check rate limits BEFORE calling API
     const usage = await checkGeminiLimits();
+    await checkUserDailyLimit(req.user.userId);
 
     // Clean HTML before sending to Gemini (strips scripts/ads/nav, truncates to ~30k chars)
     const cleanedContent = cleanHTMLForGemini(html);
@@ -116,6 +118,7 @@ export const importFromPDF = async (
 
     // Check rate limits before calling API
     await checkGeminiLimits();
+    await checkUserDailyLimit(req.user.userId);
 
     const { recipe, tokensUsed } = await extractRecipeFromPDF(req.file.buffer);
 
@@ -157,6 +160,7 @@ export const importFromText = async (
     }
 
     await checkGeminiLimits();
+    await checkUserDailyLimit(req.user.userId);
 
     const { recipe, tokensUsed } = await extractRecipeFromText(text.trim());
 
@@ -286,6 +290,7 @@ export const importFromVideo = async (
     }
 
     await checkGeminiLimits();
+    await checkUserDailyLimit(req.user.userId);
     const { recipe, tokensUsed } = await extractRecipeFromVideoFile(buffer, mimetype);
     await recordGeminiUsage(req.user.userId, 'video', tokensUsed, true);
 
@@ -320,6 +325,7 @@ export const importFromVideoURL = async (
     validateVideoUrl(url.trim());
 
     await checkGeminiLimits();
+    await checkUserDailyLimit(req.user.userId);
     const { recipe, tokensUsed } = await extractRecipeFromVideoUrl(url.trim());
     await recordGeminiUsage(req.user.userId, 'video', tokensUsed, true);
 

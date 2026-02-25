@@ -150,6 +150,102 @@ export const login = async (
   }
 };
 
+// Update profile (email)
+export const updateProfileValidation = [
+  body('email')
+    .trim()
+    .isEmail()
+    .withMessage('Must be a valid email address')
+    .normalizeEmail(),
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+];
+
+export const updateProfile = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    if (!req.user) throw createError(401, 'Not authenticated');
+
+    const { email, currentPassword } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user) throw createError(404, 'User not found');
+
+    const passwordOk = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!passwordOk) throw createError(401, 'Current password is incorrect');
+
+    // Check email not taken by another user
+    if (email !== user.email) {
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) throw createError(409, 'Email already in use');
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: { email },
+      select: { id: true, username: true, email: true, isAdmin: true, createdAt: true },
+    });
+
+    const token = generateToken({
+      userId: updated.id,
+      username: updated.username,
+      email: updated.email,
+      isAdmin: updated.isAdmin,
+    });
+
+    return res.json({ success: true, data: { user: updated, token } }) as any;
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// Change password
+export const changePasswordValidation = [
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword')
+    .isLength({ min: 8 })
+    .withMessage('New password must be at least 8 characters long')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('New password must contain at least one uppercase letter, one lowercase letter, and one number'),
+];
+
+export const changePassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    if (!req.user) throw createError(401, 'Not authenticated');
+
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user) throw createError(404, 'User not found');
+
+    const passwordOk = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!passwordOk) throw createError(401, 'Current password is incorrect');
+
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+
+    return res.json({ success: true, message: 'Password changed successfully' }) as any;
+  } catch (error) {
+    return next(error);
+  }
+};
+
 // Get current user
 export const getCurrentUser = async (
   req: Request,

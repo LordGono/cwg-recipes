@@ -26,6 +26,7 @@ interface RecipeData {
   ingredients: Array<{ item: string; amount: string }>;
   instructions: Array<{ step: number; text: string }>;
   tags?: string[];
+  countries?: string[];
 }
 
 interface ExtractionResult {
@@ -52,14 +53,16 @@ Return ONLY valid JSON in this exact format (no markdown, no code blocks, just J
     {"step": 1, "text": "Preheat oven to 350°F"},
     {"step": 2, "text": "Mix dry ingredients together"}
   ],
-  "tags": ["dessert", "baking", "easy"]
+  "tags": ["dessert", "baking", "easy"],
+  "countries": ["Italy"]
 }
 
 Rules:
 - Times are in minutes (integers)
 - Ingredient amounts should be specific with units
 - Instructions should be clear, sequential steps
-- Tags should be lowercase, single words or hyphenated phrases
+- Tags should be lowercase, single words or hyphenated phrases (e.g. "comfort-food")
+- countries: infer the country or region of origin for the cuisine (e.g. ["Italy"], ["Mexico"], ["Japan"], ["United States"]). Use full country names. Include multiple if the dish is genuinely multi-cultural. Omit if the origin is unclear.
 - If a field is not available, omit it (except name, ingredients, instructions which are required)
 - Extract exactly what's in the recipe, don't add or infer information
 

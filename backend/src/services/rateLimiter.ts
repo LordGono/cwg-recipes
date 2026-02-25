@@ -89,6 +89,38 @@ export async function checkGeminiLimits(): Promise<UsageStats> {
 }
 
 /**
+ * Check per-user daily Gemini limit (resets at midnight UTC).
+ * No-op if the user has no limit set.
+ * Throws 429 if the user has hit their personal daily cap.
+ */
+export async function checkUserDailyLimit(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { dailyGeminiLimit: true },
+  });
+
+  if (!user || user.dailyGeminiLimit == null) return; // no cap set
+
+  const todayUtc = new Date();
+  todayUtc.setUTCHours(0, 0, 0, 0);
+
+  const usedToday = await prisma.geminiUsage.count({
+    where: {
+      userId,
+      timestamp: { gte: todayUtc },
+      success: true,
+    },
+  });
+
+  if (usedToday >= user.dailyGeminiLimit) {
+    throw createError(
+      429,
+      `Daily AI import limit reached (${usedToday}/${user.dailyGeminiLimit}). Resets at midnight UTC.`
+    );
+  }
+}
+
+/**
  * Record a Gemini API usage event
  */
 export async function recordGeminiUsage(

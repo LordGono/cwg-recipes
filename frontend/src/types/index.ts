@@ -184,6 +184,21 @@ export interface ShoppingListItemResponse {
   data: { item: ShoppingListItem };
 }
 
+export interface AdminUser extends User {
+  dailyGeminiLimit?: number | null;
+  dailyUsage?: number;
+  _count: { recipes: number };
+}
+
+export interface AdminStats {
+  users: number;
+  recipes: number;
+  gemini: {
+    rpm: { used: number; limit: number; remaining: number };
+    rpd: { used: number; limit: number; remaining: number };
+  };
+}
+
 export interface ApiError {
   success: false;
   message: string;

@@ -310,15 +310,22 @@ const formData = ref<RecipeInput>({
   videoUrl: '',
 });
 
+// Convert null/NaN/"" to undefined for optional numeric fields
+const toOptionalInt = (v: number | null | undefined): number | undefined => {
+  if (v === null || v === undefined) return undefined;
+  const n = Number(v);
+  return isNaN(n) ? undefined : n;
+};
+
 // Initialize form with existing data if editing
 if (props.initialData) {
   formData.value = {
     name: props.initialData.name,
     description: props.initialData.description || '',
-    prepTime: props.initialData.prepTime,
-    cookTime: props.initialData.cookTime,
-    totalTime: props.initialData.totalTime,
-    servings: props.initialData.servings,
+    prepTime: toOptionalInt(props.initialData.prepTime),
+    cookTime: toOptionalInt(props.initialData.cookTime),
+    totalTime: toOptionalInt(props.initialData.totalTime),
+    servings: toOptionalInt(props.initialData.servings),
     ingredients: [...props.initialData.ingredients],
     instructions: [...props.initialData.instructions],
     tags: props.initialData.tags?.map((rt: any) => (typeof rt === 'string' ? rt : rt.tag.name)) || [],
@@ -390,10 +397,10 @@ watch(
       formData.value = {
         name: newData.name,
         description: newData.description || '',
-        prepTime: newData.prepTime,
-        cookTime: newData.cookTime,
-        totalTime: newData.totalTime,
-        servings: newData.servings,
+        prepTime: toOptionalInt(newData.prepTime),
+        cookTime: toOptionalInt(newData.cookTime),
+        totalTime: toOptionalInt(newData.totalTime),
+        servings: toOptionalInt(newData.servings),
         ingredients: [...newData.ingredients],
         instructions: [...newData.instructions],
         tags: newData.tags?.map((rt: any) => (typeof rt === 'string' ? rt : rt.tag.name)) || [],
@@ -419,6 +426,16 @@ const handleSubmit = () => {
     instruction.step = i + 1;
   });
 
-  emit('submit', formData.value, selectedImage.value);
+  // Ensure numeric fields are undefined (not null/"") so they're omitted from JSON
+  // (v-model.number returns "" for empty inputs; Prisma returns null for unset fields)
+  const data: RecipeInput = {
+    ...formData.value,
+    prepTime: toOptionalInt(formData.value.prepTime as any),
+    cookTime: toOptionalInt(formData.value.cookTime as any),
+    totalTime: toOptionalInt(formData.value.totalTime as any),
+    servings: toOptionalInt(formData.value.servings as any),
+  };
+
+  emit('submit', data, selectedImage.value);
 };
 </script>

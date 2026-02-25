@@ -10,6 +10,7 @@ import recipeRoutes from './routes/recipe.routes';
 import tagRoutes from './routes/tag.routes';
 import importRoutes from './routes/import.routes';
 import shoppingListRoutes from './routes/shoppingList.routes';
+import adminRoutes from './routes/admin.routes';
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/recipes', recipeRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/shopping-lists', shoppingListRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {

@@ -59,6 +59,18 @@ const routes: RouteRecordRaw[] = [
     component: RecipeEditView,
     meta: { requiresAuth: true },
   },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: () => import('@/views/ProfileView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/admin',
+    name: 'admin',
+    component: () => import('@/views/AdminView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
 ];
 
 const router = createRouter({
@@ -72,6 +84,8 @@ router.beforeEach((to, _from, next) => {
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'login', query: { redirect: to.fullPath } });
+  } else if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    next({ name: 'home' });
   } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
     next({ name: 'home' });
   } else {

@@ -68,7 +68,19 @@
           </RouterLink>
 
           <div v-if="authStore.isAuthenticated" class="flex items-center space-x-4">
-            <span class="text-gray-700 dark:text-gray-300">{{ authStore.user?.username }}</span>
+            <RouterLink
+              v-if="authStore.isAdmin"
+              to="/admin"
+              class="text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors"
+            >
+              Admin
+            </RouterLink>
+            <RouterLink
+              to="/profile"
+              class="text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors"
+            >
+              {{ authStore.user?.username }}
+            </RouterLink>
             <button @click="handleLogout" class="btn-secondary">
               Logout
             </button>

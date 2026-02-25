@@ -14,6 +14,8 @@ import type {
   TagListResponse,
   MacroData,
   User,
+  AdminUser,
+  AdminStats,
 } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -65,6 +67,42 @@ class ApiService {
 
   async getCurrentUser(): Promise<{ success: boolean; data: { user: User } }> {
     const response = await this.api.get('/auth/me');
+    return response.data;
+  }
+
+  async updateProfile(email: string, currentPassword: string): Promise<AuthResponse> {
+    const response = await this.api.patch<AuthResponse>('/auth/me', { email, currentPassword });
+    return response.data;
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.api.post('/auth/me/change-password', { currentPassword, newPassword });
+    return response.data;
+  }
+
+  // Admin endpoints
+  async getAdminUsers(): Promise<{ success: boolean; data: { users: AdminUser[] } }> {
+    const response = await this.api.get('/admin/users');
+    return response.data;
+  }
+
+  async deleteAdminUser(id: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.api.delete(`/admin/users/${id}`);
+    return response.data;
+  }
+
+  async toggleAdminUser(id: string): Promise<{ success: boolean; data: { user: User } }> {
+    const response = await this.api.patch(`/admin/users/${id}/toggle-admin`);
+    return response.data;
+  }
+
+  async setUserGeminiLimit(id: string, limit: number | null): Promise<{ success: boolean; data: { user: Pick<AdminUser, 'id' | 'username' | 'dailyGeminiLimit'> } }> {
+    const response = await this.api.patch(`/admin/users/${id}/gemini-limit`, { limit });
+    return response.data;
+  }
+
+  async getAdminStats(): Promise<{ success: boolean; data: AdminStats }> {
+    const response = await this.api.get('/admin/stats');
     return response.data;
   }
 
