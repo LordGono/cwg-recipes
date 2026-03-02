@@ -192,8 +192,10 @@ async function extractRecipeFromVideoBlob(
 ): Promise<ExtractionResult> {
   const ai = getAI();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let uploadedFile = await (ai.files as any).upload(blob, { mimeType, displayName: 'recipe-video' });
+  let uploadedFile = await ai.files.upload({
+    file: blob,
+    config: { mimeType, displayName: 'recipe-video' },
+  });
 
   const deadline = Date.now() + VIDEO_PROCESSING_TIMEOUT_MS;
   try {
@@ -202,8 +204,7 @@ async function extractRecipeFromVideoBlob(
         throw createError(504, 'Video processing timed out. Try a shorter clip (under 5 minutes).');
       }
       await new Promise((r) => setTimeout(r, 3000));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      uploadedFile = await (ai.files as any).get({ name: uploadedFile.name });
+      uploadedFile = await ai.files.get({ name: uploadedFile.name! });
     }
 
     if (uploadedFile.state === 'FAILED') {
@@ -227,8 +228,7 @@ async function extractRecipeFromVideoBlob(
     return { recipe, tokensUsed };
   } finally {
     // Best-effort cleanup — don't fail the request if the delete call fails
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (ai.files as any).delete({ name: uploadedFile.name }).catch(() => {});
+    ai.files.delete({ name: uploadedFile.name! }).catch(() => {});
   }
 }
 
